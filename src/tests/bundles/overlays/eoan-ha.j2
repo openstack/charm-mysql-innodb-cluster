@@ -1,0 +1,9 @@
+applications:
+  keystone:
+    num_units: 3
+    options:
+      vip: {{OS_VIP00}}
+  hacluster:
+    charm: cs:~openstack-charmers-next/hacluster
+relations:
+- ["keystone:ha", "hacluster:ha"]

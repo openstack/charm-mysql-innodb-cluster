@@ -1,0 +1,13 @@
+charm_name: mysql-innodb-cluster
+configure:
+# Validates database queries
+- zaza.openstack.charm_tests.keystone.setup.add_demo_user
+tests:
+# Validates database queries
+- zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
+dev_bundles:
+gate_bundles:
+- eoan
+- eoan-ha
+smoke_bundles:
+- eoan

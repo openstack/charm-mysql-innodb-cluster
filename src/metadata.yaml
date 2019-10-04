@@ -1,0 +1,19 @@
+name: mysql-innodb-cluster
+summary: MySQL InnoDB Cluster
+maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
+description: |
+  MySQL InnoDB Cluster Charm deploys and manages the lifecycle of a
+  MySQL InnoDB Cluster.
+tags:
+  - databases
+subordinate: false
+series:
+  - eoan
+provides:
+  shared-db:
+    interface: mysql-shared
+  db-router:
+    interface: mysql-router
+peers:
+  cluster:
+    interface: mysql-innodb-cluster
