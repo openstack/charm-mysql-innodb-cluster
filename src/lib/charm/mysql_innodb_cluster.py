@@ -113,52 +113,43 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def create_cluster_user(
             self, cluster_address, cluster_user, cluster_password):
 
-        SQL_REMOTE_CLUSTER_USER_CREATE = (
+        SQL_CLUSTER_USER_CREATE = (
             "CREATE USER '{user}'@'{host}' "
-            "IDENTIFIED BY '{password}'")
-
-        SQL_LOCAL_CLUSTER_USER_CREATE = (
-            "CREATE USER '{user}'@'localhost' "
             "IDENTIFIED BY '{password}'")
 
         SQL_CLUSTER_USER_GRANT = (
             "GRANT {permissions} ON *.* "
             "TO 'clusteruser'@'{host}'")
 
+        addresses = [cluster_address]
+        if cluster_address in self.cluster_address:
+            addresses.append("localhost")
+
         m_helper = self.get_db_helper()
         m_helper.connect(password=self.mysql_password)
-        try:
-            m_helper.execute(SQL_REMOTE_CLUSTER_USER_CREATE.format(
-                user=cluster_user,
-                host=cluster_address,
-                password=cluster_password)
-            )
-        except mysql.MySQLdb._exceptions.OperationalError:
-            ch_core.hookenv.log("Remote user {} already exists."
-                                .format(cluster_user), "WARNING")
-
-        if cluster_address in self.cluster_address:
+        for address in addresses:
             try:
-                m_helper.execute(SQL_LOCAL_CLUSTER_USER_CREATE.format(
+                m_helper.execute(SQL_CLUSTER_USER_CREATE.format(
                     user=cluster_user,
+                    host=address,
                     password=cluster_password)
                 )
             except mysql.MySQLdb._exceptions.OperationalError:
-                ch_core.hookenv.log("Local user {} already exists."
+                ch_core.hookenv.log("User {} already exists."
                                     .format(cluster_user), "WARNING")
 
-        m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
-            permissions="ALL PRIVILEGES",
-            user=cluster_user,
-            host=cluster_address)
-        )
-        m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
-            permissions="GRANT OPTION",
-            user=cluster_user,
-            host=cluster_address)
-        )
+            m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
+                permissions="ALL PRIVILEGES",
+                user=cluster_user,
+                host=address)
+            )
+            m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
+                permissions="GRANT OPTION",
+                user=cluster_user,
+                host=address)
+            )
 
-        m_helper.execute("flush privileges")
+            m_helper.execute("flush privileges")
 
     def configure_db_for_hosts(self, hosts, database, username):
         """Hosts may be a json-encoded list of hosts or a single hostname."""
