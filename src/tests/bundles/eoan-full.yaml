@@ -1,0 +1,37 @@
+series: eoan
+relations:
+- ["keystone:shared-db", "mysql-innodb-cluster:shared-db"]
+- ["glance:shared-db", "mysql-innodb-cluster:shared-db"]
+- ["nova-cloud-controller:shared-db", "mysql-innodb-cluster:shared-db"]
+- ["glance:identity-service", "keystone:identity-service"]
+- ["nova-cloud-controller:identity-service", "keystone:identity-service" ]
+- ["nova-cloud-controller:image-service", "glance:image-service" ]
+- ["nova-compute:image-service", "glance:image-service" ]
+- ["nova-cloud-controller:cloud-compute", "nova-compute:cloud-compute" ]
+- ["nova-cloud-controller:amqp", "rabbitmq-server:amqp" ]
+- ["nova-compute:amqp", "rabbitmq-server:amqp" ]
+applications:
+  mysql-innodb-cluster:
+    series: eoan
+    charm: ../../../mysql-innodb-cluster
+    num_units: 3
+    options:
+      #source: distro-proposed
+      source: ppa:racb/experimental
+  keystone:
+    charm: cs:~openstack-charmers-next/keystone
+    num_units: 1
+  glance:
+    charm: cs:~openstack-charmers-next/glance
+    num_units: 1
+    options:
+      openstack-origin: distro-proposed
+  nova-cloud-controller:
+    charm: cs:~openstack-charmers-next/nova-cloud-controller
+    num_units: 1
+  nova-compute:
+    charm: cs:~openstack-charmers-next/nova-compute
+    num_units: 1
+  rabbitmq-server:
+    charm: cs:~openstack-charmers-next/rabbitmq-server
+    num_units: 1
