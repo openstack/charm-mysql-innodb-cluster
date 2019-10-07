@@ -22,3 +22,5 @@ Cold Start
 Testing
   Destruction of RW node testing
   Juju leader changes
+
+Certificates Relation with Vault

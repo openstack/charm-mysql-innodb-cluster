@@ -14,6 +14,7 @@
 
 import json
 import subprocess
+import tenacity
 import tempfile
 import uuid
 
@@ -51,6 +52,10 @@ def shared_db_address(cls):
 @charms_openstack.adapters.config_property
 def db_router_address(cls):
     return ch_net_ip.get_relation_ip("db-router")
+
+
+class CannotConnectToMySQL(Exception):
+    pass
 
 
 class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
@@ -273,6 +278,13 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     "Failed configuring instance {}: {}"
                     .format(address, e.output.decode("UTF-8")), "ERROR")
                 return
+
+        # After configuration of the remote instance, the remote instance
+        # restarts mysql. We need to pause here for that to complete.
+        self._wait_until_connectable(username=self.cluster_user,
+                                     password=self.cluster_password,
+                                     address=address)
+
         ch_core.hookenv.log("Instance Configured {}: {}"
                             .format(address, output.decode("UTF-8")),
                             level="DEBUG")
@@ -401,7 +413,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         return states_to_check
 
-    def check_mysql_connection(self, password=None):
+    def check_mysql_connection(
+            self, username=None, password=None, address=None):
         """Check if local instance of mysql is accessible.
 
         Attempt a connection to the local instance of mysql to determine if it
@@ -412,15 +425,27 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :side effect: Uses get_db_helper to execute a connection to the DB.
         :returns: boolean
         """
+        address = address or "localhost"
+        password = password or self.mysql_password
+        username = username or "root"
 
         m_helper = self.get_db_helper()
-        password = password or m_helper.get_mysql_root_password()
         try:
-            m_helper.connect(password=password)
+            m_helper.connect(user=username, password=password, host=address)
             return True
         except mysql.MySQLdb._exceptions.OperationalError:
             ch_core.hookenv.log("Could not connect to db", "DEBUG")
             return False
+
+    @tenacity.retry(wait=tenacity.wait_fixed(10),
+                    reraise=True,
+                    stop=tenacity.stop_after_delay(5))
+    def _wait_until_connectable(
+            self, username=None, password=None, address=None):
+
+        if not self.check_mysql_connection(
+                username=username, password=password, address=address):
+            raise CannotConnectToMySQL("Unable to connect to MySQL")
 
     def custom_assess_status_check(self):
 
