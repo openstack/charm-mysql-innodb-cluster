@@ -35,11 +35,11 @@ def leader_install():
         instance.assess_status()
 
 
-@reactive.when('leadership.set.root-password')
+@reactive.when('leadership.set.mysql.passwd')
 @reactive.when_not('leadership.is_leader')
 @reactive.when_not('charm.installed')
 def non_leader_install():
-    # Wait for leader to set root-password
+    # Wait for leader to set mysql.passwd
     with charm.provide_charm_instance() as instance:
         instance.install()
         reactive.set_flag("charm.installed")

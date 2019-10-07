@@ -78,14 +78,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
     @property
     def mysqlsh_bin(self):
-        return "/snap/bin/mysqlsh"
+        # The current upstream snap uses mysql-shell
+        # When we get the alias use /snap/bin/mysqlsh
+        # return "/snap/bin/mysqlsh"
+        return "/snap/mysql-shell/current/usr/bin/mysqlsh"
 
     def install(self):
         """Custom install function.
         """
 
-        # Set root password in packaging before installation
-        self.configure_mysql_root_password(self.root_password)
+        # Set mysql password in packaging before installation
+        self.configure_mysql_password()
 
         # TODO: charms.openstack should probably do this
         # Need to configure source first
@@ -118,7 +121,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             "TO 'clusteruser'@'{host}'")
 
         m_helper = self.get_db_helper()
-        m_helper.connect(password=m_helper.get_mysql_root_password())
+        m_helper.connect(password=self.mysql_password)
         try:
             m_helper.execute(SQL_REMOTE_CLUSTER_USER_CREATE.format(
                 user=cluster_user,
@@ -200,8 +203,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         """Retrieve named password
 
         This function will ensure that a consistent named password
-        is used across all units in the pxc cluster; the lead unit
-        will generate or use the root-password configuration option
+        is used across all units in the InnoDB cluster; the lead unit
+        will generate or use the mysql.passwd configuration option
         to seed this value into the deployment.
 
         Once set, it cannot be changed.
@@ -216,10 +219,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         return _password
 
     @property
-    def root_password(self):
-        # TODO: Change me to mysql.password
-        # Change reactive handler leader setting check too
-        return self._get_password("root-password")
+    def mysql_password(self):
+        return self._get_password("mysql.passwd")
 
     @property
     def cluster_password(self):
@@ -292,7 +293,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         if not reactive.is_flag_set(
                 "leadership.set.cluster-instance-configured-{}"
                 .format(self.cluster_address)):
-            ch_core.hookenv.log("This insance is not yet configured for "
+            ch_core.hookenv.log("This instance is not yet configured for "
                                 "clustering, delaying cluster creation.",
                                 "WARNING")
             return
@@ -440,20 +441,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         return None, None
 
     # TODO: move to mysql charmhelper
-    def configure_mysql_root_password(self, password):
-        """ Configure debconf with root password """
+    def configure_mysql_password(self):
+        """ Configure debconf with mysql password """
         dconf = subprocess.Popen(
             ['debconf-set-selections'], stdin=subprocess.PIPE)
         # Set password options to cover packages
         packages = ["mysql-server", "mysql-server-8.0"]
-        m_helper = self.get_db_helper()
-        root_pass = m_helper.get_mysql_root_password(password)
         for package in packages:
             dconf.stdin.write("{} {}/root_password password {}\n"
-                              .format(package, package, root_pass)
+                              .format(package, package, self.mysql_password)
                               .encode("utf-8"))
             dconf.stdin.write("{} {}/root_password_again password {}\n"
-                              .format(package, package, root_pass)
+                              .format(package, package, self.mysql_password)
                               .encode("utf-8"))
         dconf.communicate()
         dconf.wait()
