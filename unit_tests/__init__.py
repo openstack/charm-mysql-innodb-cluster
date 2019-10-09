@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mock
 import os
 import sys
 
-# Mock out charmhelpers so that we can test without it.
-import charms_openstack.test_mocks  # noqa
-charms_openstack.test_mocks.mock_charmhelpers()
-
 _path = os.path.dirname(os.path.realpath(__file__))
-_src = os.path.abspath(os.path.join(_path, 'src'))
-_lib = os.path.abspath(os.path.join(_path, 'src/lib'))
+_src = os.path.abspath(os.path.join(_path, "../src"))
+_lib = os.path.abspath(os.path.join(_path, "../src/lib"))
+_reactive = os.path.abspath(os.path.join(_path, "../src/reactive"))
 
 
 def _add_path(path):
@@ -30,3 +28,25 @@ def _add_path(path):
 
 _add_path(_src)
 _add_path(_lib)
+_add_path(_reactive)
+
+# Mock out charmhelpers so that we can test without it.
+import charms_openstack.test_mocks  # noqa
+charms_openstack.test_mocks.mock_charmhelpers()
+
+# Mock out charm dependencies
+import charms
+charms.leadership = mock.MagicMock()
+sys.modules['charms.leadership'] = charms.leadership
+
+charmhelpers = mock.MagicMock()
+charmhelpers.contrib.database = mock.MagicMock()
+charmhelpers.contrib.database.mysql = mock.MagicMock()
+sys.modules['charmhelpers.contrib.database'] = charmhelpers.contrib.database
+sys.modules['charmhelpers.contrib.database.mysql'] = (
+    charmhelpers.contrib.database.mysql)
+
+# Tenacity decorators need to be mocked before import
+tenacity = mock.MagicMock()
+tenacity.retry.side_effect = lambda *args, **kwargs: lambda x: x
+sys.modules['tenacity'] = tenacity

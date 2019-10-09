@@ -18,17 +18,14 @@ charm.use_defaults(
     'certificates.available')
 
 
-@reactive.when_not('cluster-instances-clustered')
-def debug():
-    print("DEBUG")
-    for flag in reactive.flags.get_flags():
-        print(flag)
-
-
 @reactive.when('leadership.is_leader')
 @reactive.when('snap.installed.mysql-shell')
 @reactive.when_not('charm.installed')
 def leader_install():
+    """Leader install.
+
+    Set passwords and install MySQL packages.
+    """
     with charm.provide_charm_instance() as instance:
         instance.install()
         reactive.set_flag("charm.installed")
@@ -39,16 +36,21 @@ def leader_install():
 @reactive.when_not('leadership.is_leader')
 @reactive.when_not('charm.installed')
 def non_leader_install():
+    """Non-leader install.
+
+    Wait until the leader node has set passwords before installing the MySQL
+    packages.
+    """
     # Wait for leader to set mysql.passwd
-    with charm.provide_charm_instance() as instance:
-        instance.install()
-        reactive.set_flag("charm.installed")
-        instance.assess_status()
+    with charm.provide_charm_instance() as instance: instance.install()
+    reactive.set_flag("charm.installed") instance.assess_status()
 
 
 @reactive.when('charm.installed')
 @reactive.when_not('local.cluster.user-created')
 def create_local_cluster_user():
+    """Create local cluster user in the DB.
+    """
     ch_core.hookenv.log("Creating local cluster user.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         instance.create_cluster_user(
@@ -63,6 +65,14 @@ def create_local_cluster_user():
 @reactive.when('cluster.connected')
 @reactive.when_not('cluster.available')
 def send_cluster_connection_info(cluster):
+    """Send cluster connection information.
+
+    Send cluster user, password and address information over the cluster
+    relation on how to connect to this unit.
+
+    :param cluster: Cluster interface
+    :type cluster: MySQLInnoDBClusterPeers object
+    """
     ch_core.hookenv.log("Send cluster connection information.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         cluster.set_cluster_connection_info(
@@ -75,6 +85,14 @@ def send_cluster_connection_info(cluster):
 @reactive.when_not('local.cluster.all-users-created')
 @reactive.when('cluster.available')
 def create_remote_cluster_user(cluster):
+    """Create remote cluster user.
+    
+    Create the remote cluster peer user and grant cluster permissions in the
+    MySQL DB.
+
+    :param cluster: Cluster interface
+    :type cluster: MySQLInnoDBClusterPeers object
+    """
     ch_core.hookenv.log("Creating remote users.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
@@ -93,6 +111,10 @@ def create_remote_cluster_user(cluster):
 @reactive.when('local.cluster.user-created')
 @reactive.when_not('leadership.set.cluster-created')
 def initialize_cluster():
+    """Initialize the cluster.
+
+    Create the InnoDB cluster.
+    """
     ch_core.hookenv.log("Initializing InnoDB cluster.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         instance.configure_instance(instance.cluster_address)
@@ -106,6 +128,13 @@ def initialize_cluster():
 @reactive.when('cluster.available')
 @reactive.when_not('leadership.set.cluster-instances-configured')
 def configure_instances_for_clustering(cluster):
+    """Configure cluster peers for clustering.
+
+    Prepare peers to be added to the cluster.
+
+    :param cluster: Cluster interface
+    :type cluster: MySQLInnoDBClusterPeers object
+    """
     ch_core.hookenv.log("Configuring instances for clustering.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
@@ -132,6 +161,11 @@ def configure_instances_for_clustering(cluster):
 @reactive.when('cluster.available')
 @reactive.when_not('leadership.set.cluster-instances-clustered')
 def add_instances_to_cluster(cluster):
+    """Add cluster peers to the cluster.
+
+    :param cluster: Cluster interface
+    :type cluster: MySQLInnoDBClusterPeers object
+    """
     ch_core.hookenv.log("Adding instances to cluster.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
@@ -154,6 +188,13 @@ def add_instances_to_cluster(cluster):
 @reactive.when('leadership.set.cluster-created')
 @reactive.when('cluster.available')
 def signal_clustered(cluster):
+    """Signal unit clustered to peers.
+
+    Set this unit clustered on the cluster peer relation.
+
+    :param cluster: Cluster interface
+    :type cluster: MySQLInnoDBClusterPeers object
+    """
     # Optimize clustering by causing a cluster relation changed
     with charm.provide_charm_instance() as instance:
         if reactive.is_flag_set(
@@ -167,6 +208,11 @@ def signal_clustered(cluster):
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('shared-db.available')
 def shared_db_respond(shared_db):
+    """Respond to Shared DB Requests.
+
+    :param shared_db: Shared-DB interface
+    :type shared-db: MySQLSharedProvides object
+    """
     with charm.provide_charm_instance() as instance:
         instance.create_databases_and_users(shared_db)
         instance.assess_status()
@@ -176,6 +222,11 @@ def shared_db_respond(shared_db):
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('db-router.available')
 def db_router_respond(db_router):
+    """Respond to DB Router Requests.
+
+    :param db_router: DB-Router interface
+    :type db_router_interface: MySQLRouterRequires object
+    """
     with charm.provide_charm_instance() as instance:
         instance.create_databases_and_users(db_router)
         instance.assess_status()

@@ -35,26 +35,64 @@ MYSQLD_CNF = "/etc/mysql/mysql.conf.d/mysqld.cnf"
 
 @charms_openstack.adapters.config_property
 def server_id(cls):
+    """Determine this unit's server ID.
+
+    :param cls: Class
+    :type cls: MySQLInnoDBClusterCharm class
+    :returns: String server ID
+    :rtype: str
+    """
     unit_num = int(ch_core.hookenv.local_unit().split("/")[1])
     return str(unit_num + 1000)
 
 
 @charms_openstack.adapters.config_property
 def cluster_address(cls):
+    """Determine this unit's cluster address.
+
+    Using the relation binding determine this unit's cluster address.
+
+    :param cls: Class
+    :type cls: MySQLInnoDBClusterCharm class
+    :returns: Address
+    :rtype: str
+    """
     return ch_net_ip.get_relation_ip("cluster")
 
 
 @charms_openstack.adapters.config_property
 def shared_db_address(cls):
+    """Determine this unit's Shared-DB address.
+
+    Using the relation binding determine this unit's address for the Shared-DB
+    relation.
+
+    :param cls: Class
+    :type cls: MySQLInnoDBClusterCharm class
+    :returns: Address
+    :rtype: str
+    """
     return ch_net_ip.get_relation_ip("shared-db")
 
 
 @charms_openstack.adapters.config_property
 def db_router_address(cls):
+    """Determine this unit's DB-Router address.
+
+    Using the relation binding determine this unit's address for the DB-Router
+    relation.
+
+    :param cls: Class
+    :type cls: MySQLInnoDBClusterCharm class
+    :returns: Address
+    :rtype: str
+    """
     return ch_net_ip.get_relation_ip("db-router")
 
 
 class CannotConnectToMySQL(Exception):
+    """Exception when attempting to connect to a MySQL server.
+    """
     pass
 
 
@@ -83,15 +121,165 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
     @property
     def mysqlsh_bin(self):
+        """Determine binary path for MySQL Shell.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Path to binary mysqlsh
+        :rtype: str
+        """
         # The current upstream snap uses mysql-shell
         # When we get the alias use /snap/bin/mysqlsh
         # return "/snap/bin/mysqlsh"
         return "/snap/mysql-shell/current/usr/bin/mysqlsh"
 
+    @property
+    def mysql_password(self):
+        """Determine or set primary MySQL password.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: MySQL password
+        :rtype: str
+        """
+        return self._get_password("mysql.passwd")
+
+    @property
+    def cluster_name(self):
+        """Determine the MySQL InnoDB Cluster name.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Cluster name
+        :rtype: str
+        """
+        return self.options.cluster_name
+
+    @property
+    def cluster_password(self):
+        """Determine or set password for the cluster user.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Cluster password
+        :rtype: str
+        """
+        return self._get_password("cluster-password")
+
+    @property
+    def cluster_address(self):
+        """Determine this unit's cluster address.
+
+        Using the class method determine this unit's cluster address.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Address
+        :rtype: str
+        """
+        return self.options.cluster_address
+
+    @property
+    def cluster_user(self):
+        """Determine the cluster username.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Cluster username
+        :rtype: str
+        """
+        return "clusteruser"
+
+    @property
+    def shared_db_address(self):
+        """Determine this unit's Shared-DB address.
+
+        Using the class method determine this unit's address for the Shared-DB
+        relation.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Address
+        :rtype: str
+        """
+        return self.options.shared_db_address
+
+    @property
+    def db_router_address(self):
+        """Determine this unit's Shared-DB address.
+
+        Using the class method determine this unit's address for the DB-Router
+        relation.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Address
+        :rtype: str
+        """
+        return self.options.db_router_address
+
+    # TODO: Generalize and move to mysql charmhelpers
+    def _get_password(self, key):
+        """Retrieve named password.
+
+        This function will ensure that a consistent named password
+        is used across all units in the InnoDB cluster.
+
+        The lead unit will generate or use the mysql.passwd configuration
+        option to seed this value into the deployment.
+
+        Once set, it cannot be changed.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param key: Named password or None if unable to retrieve at this point
+                    in time
+        :type key: str
+        :returns: Address
+        :rtype: str
+        """
+        _password = ch_core.hookenv.leader_get(key)
+        if not _password and ch_core.hookenv.is_leader():
+            _password = ch_core.hookenv.config(key) or ch_core.host.pwgen()
+            ch_core.hookenv.leader_set({key: _password})
+        return _password
+
+    # TODO: Generalize and move to mysql charmhelpers
+    def configure_mysql_password(self):
+        """ Configure debconf with mysql password.
+
+        Prior to installation set the root-password for the MySQL server
+        package(s).
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Executes debconf
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        dconf = subprocess.Popen(
+            ['debconf-set-selections'], stdin=subprocess.PIPE)
+        # Set password options to cover packages
+        packages = ["mysql-server", "mysql-server-8.0"]
+        for package in packages:
+            dconf.stdin.write("{} {}/root_password password {}\n"
+                              .format(package, package, self.mysql_password)
+                              .encode("utf-8"))
+            dconf.stdin.write("{} {}/root_password_again password {}\n"
+                              .format(package, package, self.mysql_password)
+                              .encode("utf-8"))
+        dconf.communicate()
+        dconf.wait()
+
     def install(self):
         """Custom install function.
-        """
 
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Executes other functions
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
         # Set mysql password in packaging before installation
         self.configure_mysql_password()
 
@@ -103,7 +291,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         # Render mysqld.cnf and cause a restart
         self.render_all_configs()
 
+    # TODO: Generalize and move to mysql charmhelpers
     def get_db_helper(self):
+        """Get an instance of the MySQLDB8Helper class.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Instance of MySQLDB8Helper class
+        :rtype: MySQLDB8Helper instance
+        """
+        # NOTE: The template paths are an artifact of the original Helper code.
+        # Passwords are injected into leader settings. No passwords are written
+        # to disk by this class.
         return mysql.MySQL8Helper(
             rpasswdf_template="/var/lib/charm/{}/mysql.passwd"
                               .format(ch_core.hookenv.service_name()),
@@ -112,14 +311,33 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
     def create_cluster_user(
             self, cluster_address, cluster_user, cluster_password):
+        """Create cluster user and grant permissions in the MySQL DB.
 
+        This user will be used by the leader for instance configuration and
+        initial cluster creation.
+
+        The grants are specfic to cluster creation and management as documented
+        upstream.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param cluster_address: Cluster user's address
+        :type cluster_address: str
+        :param cluster_user: Cluster user's username
+        :type cluster_user: str
+        :param cluster_password: Cluster user's password
+        :type cluster_password: str
+        :side effect: Executes SQL to create DB user
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
         SQL_CLUSTER_USER_CREATE = (
             "CREATE USER '{user}'@'{host}' "
             "IDENTIFIED BY '{password}'")
 
         SQL_CLUSTER_USER_GRANT = (
             "GRANT {permissions} ON *.* "
-            "TO 'clusteruser'@'{host}'")
+            "TO '{user}'@'{host}'")
 
         addresses = [cluster_address]
         if cluster_address in self.cluster_address:
@@ -151,95 +369,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
             m_helper.execute("flush privileges")
 
-    def configure_db_for_hosts(self, hosts, database, username):
-        """Hosts may be a json-encoded list of hosts or a single hostname."""
-        if not all([hosts, database, username]):
-            ch_core.hookenv.log("Remote data incomplete.", "WARNING")
-            return
-        try:
-            hosts = json.loads(hosts)
-            ch_core.hookenv.log("Multiple hostnames provided by relation: {}"
-                                .format(', '.join(hosts)), "DEBUG")
-        except ValueError:
-            ch_core.hookenv.log(
-                "Single hostname provided by relation: {}".format(hosts),
-                level="DEBUG")
-            hosts = [hosts]
-
-        db_helper = self.get_db_helper()
-
-        for host in hosts:
-            password = db_helper.configure_db(host, database, username)
-
-        return password
-
-    def configure_db_router(self, hosts, username):
-        """Hosts may be a json-encoded list of hosts or a single hostname."""
-        if not all([hosts, username]):
-            ch_core.hookenv.log("Remote data incomplete.", "WARNING")
-            return
-        try:
-            hosts = json.loads(hosts)
-            ch_core.hookenv.log("Multiple hostnames provided by relation: {}"
-                                .format(', '.join(hosts)), "DEBUG")
-        except ValueError:
-            ch_core.hookenv.log(
-                "Single hostname provided by relation: {}".format(hosts),
-                level="DEBUG")
-            hosts = [hosts]
-
-        db_helper = self.get_db_helper()
-
-        for host in hosts:
-            password = db_helper.configure_router(host, username)
-
-        return password
-
-    def _get_password(self, key):
-        """Retrieve named password
-
-        This function will ensure that a consistent named password
-        is used across all units in the InnoDB cluster; the lead unit
-        will generate or use the mysql.passwd configuration option
-        to seed this value into the deployment.
-
-        Once set, it cannot be changed.
-
-        @requires: str: named password or None if unable to retrieve
-                        at this point in time
-        """
-        _password = ch_core.hookenv.leader_get(key)
-        if not _password and ch_core.hookenv.is_leader():
-            _password = ch_core.hookenv.config(key) or ch_core.host.pwgen()
-            ch_core.hookenv.leader_set({key: _password})
-        return _password
-
-    @property
-    def mysql_password(self):
-        return self._get_password("mysql.passwd")
-
-    @property
-    def cluster_password(self):
-        return self._get_password("cluster-password")
-
-    @property
-    def cluster_address(self):
-        return self.options.cluster_address
-
-    @property
-    def cluster_user(self):
-        return "clusteruser"
-
-    @property
-    def shared_db_address(self):
-        return self.options.shared_db_address
-
-    @property
-    def db_router_address(self):
-        return self.options.db_router_address
-
     def configure_instance(self, address):
+        """Configure MySQL instance for clustering.
 
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param address: Address of the MySQL instance to be configured
+        :type address: str
+        :side effect: Executes MySQL Shell script to configure the instance for
+                      clustering
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
         if reactive.is_flag_set(
                 "leadership.set.cluster-instance-configured-{}"
                 .format(address)):
@@ -282,12 +423,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({"cluster-instance-configured-{}"
                                .format(address): True})
 
-    @property
-    def cluster_name(self):
-        return self.options.cluster_name
-
     def create_cluster(self):
+        """Create the MySQL InnoDB cluster.
 
+        Creates the MySQL InnoDB cluster using self.cluster_name.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Executes MySQL Shell script to create the MySQL InnoDB
+                      Cluster
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
         if reactive.is_flag_set("leadership.set.cluster-created"):
             ch_core.hookenv.log("Cluster: {}, already created"
                                 .format(self.options.cluster_name), "WARNING")
@@ -305,7 +452,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         shell.connect("{}:{}@{}")
         var cluster = dba.createCluster("{}");
         """
-
         ch_core.hookenv.log("Creating cluster: {}."
                             .format(self.options.cluster_name), "INFO")
         with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _script:
@@ -333,7 +479,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({"cluster-created": str(uuid.uuid4())})
 
     def add_instance_to_cluster(self, address):
+        """Add MySQL instance to the cluster.
 
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param address: Address of the MySQL instance to be configured
+        :type address: str
+        :side effect: Executes MySQL Shell script to add the MySQL instance to
+                      the cluster
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
         if reactive.is_flag_set(
                 "leadership.set.cluster-instance-clustered-{}"
                 .format(address)):
@@ -374,107 +530,24 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({"cluster-instance-clustered-{}"
                                .format(address): True})
 
-    def states_to_check(self, required_relations=None):
-        """Custom state check function for charm specific state check needs.
-
-        """
-        states_to_check = super().states_to_check(required_relations)
-        states_to_check["charm"] = [
-            ("charm.installed",
-             "waiting",
-             "MySQL not installed"),
-            ("leadership.set.cluster-instance-configured-{}"
-             .format(self.cluster_address),
-             "waiting",
-             "Instance not yet configured for clustering"),
-            ("leadership.set.cluster-created",
-             "waiting",
-             "Cluster {} not yet created by leader"
-             .format(self.cluster_name)),
-            ("leadership.set.cluster-instances-configured",
-             "waiting",
-             "Not all instances configured for clustering"),
-            ("leadership.set.cluster-instance-clustered-{}"
-             .format(self.cluster_address),
-             "waiting",
-             "Instance not yet in the cluster"),
-            ("leadership.set.cluster-instances-clustered",
-             "waiting",
-             "Not all instances clustered")]
-
-        return states_to_check
-
-    def check_mysql_connection(
-            self, username=None, password=None, address=None):
-        """Check if local instance of mysql is accessible.
-
-        Attempt a connection to the local instance of mysql to determine if it
-        is running and accessible.
-
-        :param password: Password to use for connection test.
-        :type password: str
-        :side effect: Uses get_db_helper to execute a connection to the DB.
-        :returns: boolean
-        """
-        address = address or "localhost"
-        password = password or self.mysql_password
-        username = username or "root"
-
-        m_helper = self.get_db_helper()
-        try:
-            m_helper.connect(user=username, password=password, host=address)
-            return True
-        except mysql.MySQLdb._exceptions.OperationalError:
-            ch_core.hookenv.log("Could not connect to db", "DEBUG")
-            return False
-
-    @tenacity.retry(wait=tenacity.wait_fixed(10),
-                    reraise=True,
-                    stop=tenacity.stop_after_delay(5))
-    def _wait_until_connectable(
-            self, username=None, password=None, address=None):
-
-        if not self.check_mysql_connection(
-                username=username, password=password, address=address):
-            raise CannotConnectToMySQL("Unable to connect to MySQL")
-
-    def custom_assess_status_check(self):
-
-        # Start with default checks
-        for f in [self.check_if_paused,
-                  self.check_interfaces,
-                  self.check_mandatory_config]:
-            state, message = f()
-            if state is not None:
-                ch_core.hookenv.status_set(state, message)
-                return state, message
-
-        # We should not get here until there is a connection to the
-        # cluster
-        if not self.check_mysql_connection():
-            return "blocked", "MySQL is down"
-
-        return None, None
-
-    # TODO: move to mysql charmhelper
-    def configure_mysql_password(self):
-        """ Configure debconf with mysql password """
-        dconf = subprocess.Popen(
-            ['debconf-set-selections'], stdin=subprocess.PIPE)
-        # Set password options to cover packages
-        packages = ["mysql-server", "mysql-server-8.0"]
-        for package in packages:
-            dconf.stdin.write("{} {}/root_password password {}\n"
-                              .format(package, package, self.mysql_password)
-                              .encode("utf-8"))
-            dconf.stdin.write("{} {}/root_password_again password {}\n"
-                              .format(package, package, self.mysql_password)
-                              .encode("utf-8"))
-        dconf.communicate()
-        dconf.wait()
-
-    # TODO: move to mysql charmhelper
+    # TODO: Generalize and move to mysql charmhelpers
     def get_allowed_units(self, database, username, relation_id):
+        """Get Allowed Units.
+
+        Call MySQL8Helper.get_allowed_units and return space delimited list of
+        allowed unit names.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param database: Database name
+        :type database: str
+        :param username: Username
+        :type username: str
+        :param relation_id: Relation ID
+        :type relation_id: str
+        :returns: Space delimited list of unit names
+        :rtype: str
+        """
         db_helper = self.get_db_helper()
         allowed_units = db_helper.get_allowed_units(
             database, username, relation_id=relation_id)
@@ -483,38 +556,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         allowed_units = ' '.join(allowed_units)
         return allowed_units
 
-    # TODO: move to mysql charmhelper
-    def resolve_hostname_to_ip(self, hostname):
-        """Resolve hostname to IP
-
-        @param hostname: hostname to be resolved
-        @returns IP address or None if resolution was not possible via DNS
-        """
-        import dns.resolver
-
-        if self.options.prefer_ipv6:
-            if ch_net_ip.is_ipv6(hostname):
-                return hostname
-
-            query_type = 'AAAA'
-        elif ch_net_ip.is_ip(hostname):
-            return hostname
-        else:
-            query_type = 'A'
-
-        # This may throw an NXDOMAIN exception; in which case
-        # things are badly broken so just let it kill the hook
-        answers = dns.resolver.query(hostname, query_type)
-        if answers:
-            return answers[0].address
-
     def create_databases_and_users(self, interface):
-        """Create databases and users
+        """Create databases and users.
 
-        :param interface: Relation data
-        :type interface: reative.relations.Endpoint object
-        :side effect: interface.set_db_connection_info is exectuted
-        :returns: None
+        Take an Endpoint interface and create databases and users based on the
+        requests on the relation.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param interface: Interface Object (shared-db or db-router)
+        :type interface: reactive.relations.Endpoint object
+        :side effect: interface.set_db_connection_info is executed
+        :returns: This function is called for its side effect
         :rtype: None
         """
         for unit in interface.all_joined_units:
@@ -556,3 +609,212 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     db_host,
                     password,
                     allowed_units=allowed_units, prefix=prefix)
+
+    # TODO: Generalize and move to mysql charmhelpers
+    def configure_db_for_hosts(self, hosts, database, username):
+        """Configure database for user at host(s).
+
+        Create and configure database and user with full access permissions
+        from host(s).
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param hosts: Hosts may be a json-encoded list of hosts or a single
+                      hostname.
+        :type hosts: Union[str, Json list]
+        :param database: Database name
+        :type database: str
+        :param username: Username
+        :type username: str
+        :side effect: Calls MySQL8Helper.configure_db
+        :returns: Password for the DB user
+        :rtype: str
+        """
+        if not all([hosts, database, username]):
+            ch_core.hookenv.log("Remote data incomplete.", "WARNING")
+            return
+        try:
+            hosts = json.loads(hosts)
+            ch_core.hookenv.log("Multiple hostnames provided by relation: {}"
+                                .format(', '.join(hosts)), "DEBUG")
+        except ValueError:
+            ch_core.hookenv.log(
+                "Single hostname provided by relation: {}".format(hosts),
+                level="DEBUG")
+            hosts = [hosts]
+
+        db_helper = self.get_db_helper()
+
+        for host in hosts:
+            password = db_helper.configure_db(host, database, username)
+
+        return password
+
+    def configure_db_router(self, hosts, username):
+        """Configure database for MySQL Router user at host(s).
+
+        Create and configure MySQL Router user with mysql router specific
+        permissions from host(s).
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param hosts: Hosts may be a json-encoded list of hosts or a single
+                      hostname.
+        :type hosts: Union[str, Json list]
+        :param username: Username
+        :type username: str
+        :side effect: Calls MySQL8Helper.configure_router
+        :returns: Password for the DB user
+        :rtype: str
+        """
+        if not all([hosts, username]):
+            ch_core.hookenv.log("Remote data incomplete.", "WARNING")
+            return
+        try:
+            hosts = json.loads(hosts)
+            ch_core.hookenv.log("Multiple hostnames provided by relation: {}"
+                                .format(', '.join(hosts)), "DEBUG")
+        except ValueError:
+            ch_core.hookenv.log(
+                "Single hostname provided by relation: {}".format(hosts),
+                level="DEBUG")
+            hosts = [hosts]
+
+        db_helper = self.get_db_helper()
+
+        for host in hosts:
+            password = db_helper.configure_router(host, username)
+
+        return password
+
+    def states_to_check(self, required_relations=None):
+        """Custom states to check function.
+
+        Construct a custom set of connected and available states for each
+        of the relations passed, along with error messages and new status
+        conditions.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param required_relations: List of relations which overrides
+                                   self.relations
+        :type required_relations: list of strings
+        :returns: {relation: [(state, err_status, err_msg), (...),]}
+        :rtype: dict
+        """
+        states_to_check = super().states_to_check(required_relations)
+        states_to_check["charm"] = [
+            ("charm.installed",
+             "waiting",
+             "MySQL not installed"),
+            ("leadership.set.cluster-instance-configured-{}"
+             .format(self.cluster_address),
+             "waiting",
+             "Instance not yet configured for clustering"),
+            ("leadership.set.cluster-created",
+             "waiting",
+             "Cluster {} not yet created by leader"
+             .format(self.cluster_name)),
+            ("leadership.set.cluster-instances-configured",
+             "waiting",
+             "Not all instances configured for clustering"),
+            ("leadership.set.cluster-instance-clustered-{}"
+             .format(self.cluster_address),
+             "waiting",
+             "Instance not yet in the cluster"),
+            ("leadership.set.cluster-instances-clustered",
+             "waiting",
+             "Not all instances clustered")]
+
+        return states_to_check
+
+    def custom_assess_status_check(self):
+        """Custom assess status check.
+
+        Custom assess status check that validates connectivity to this unit's
+        MySQL instance.
+
+        Returns tuple of (sate, message), if there is a problem to report to
+        status output, or (None, None) if all is well.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Either (state, message) or (None, None)
+        :rtype: Union[tuple(str, str), tuple(None, None)]
+        """
+        # Start with default checks
+        for f in [self.check_if_paused,
+                  self.check_interfaces,
+                  self.check_mandatory_config]:
+            state, message = f()
+            if state is not None:
+                ch_core.hookenv.status_set(state, message)
+                return state, message
+
+        # We should not get here until there is a connection to the
+        # cluster available.
+        if not self.check_mysql_connection():
+            return "blocked", "MySQL is down"
+
+        return None, None
+
+    def check_mysql_connection(
+            self, username=None, password=None, address=None):
+        """Check if an instance of MySQL is accessible.
+
+        Attempt a connection to the given instance of mysql to determine if it
+        is running and accessible.
+
+        :param username: Username
+        :type username: str
+        :param password: Password to use for connection test.
+        :type password: str
+        :param address: Address of the MySQL instance to connect to
+        :type address: str
+        :side effect: Uses get_db_helper to execute a connection to the DB.
+        :returns: True if connection succeeds or False if not
+        :rtype: boolean
+        """
+        address = address or "localhost"
+        password = password or self.mysql_password
+        username = username or "root"
+
+        m_helper = self.get_db_helper()
+        try:
+            m_helper.connect(user=username, password=password, host=address)
+            return True
+        except mysql.MySQLdb._exceptions.OperationalError:
+            ch_core.hookenv.log("Could not connect to {}@{}"
+                                .format(username, address), "DEBUG")
+            return False
+
+    @tenacity.retry(wait=tenacity.wait_fixed(10),
+                    reraise=True,
+                    stop=tenacity.stop_after_delay(5))
+    def _wait_until_connectable(
+            self, username=None, password=None, address=None):
+        """Wait until MySQL instance is accessible.
+
+        Attempt a connection to the given instance of mysql, retry on failure
+        using tenacity until successful or number of retries reached.
+
+        This is useful for waiting when the MySQL instance may be restarting.
+
+        Warning: Use sparingly. This function asserts connectivity and raises
+        CannotConnectToMySQL if it is unsuccessful on all retries.
+
+        :param username: Username
+        :type username: str
+        :param password: Password to use for connection test.
+        :type password: str
+        :param address: Address of the MySQL instance to connect to
+        :type address: str
+        :side effect: Calls self.check_mysql_connection
+        :raises CannotConnectToMySQL: Raises CannotConnectToMySQL if number of
+                                      retires exceeded.
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        if not self.check_mysql_connection(
+                username=username, password=password, address=address):
+            raise CannotConnectToMySQL("Unable to connect to MySQL")
