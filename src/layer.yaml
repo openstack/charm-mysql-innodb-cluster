@@ -13,7 +13,7 @@ options:
     mysql-shell:
       channel: edge
       devmode: True
-repo: https://github.com/openstack-charmers/charm-mysql-innodb-cluster
+repo: https://opendev.org/openstack/charm-mysql-innodb-cluster
 config:
   deletes:
     - verbose

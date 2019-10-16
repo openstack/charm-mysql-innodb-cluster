@@ -402,7 +402,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call("GRANT GRANT OPTION ON *.* TO '{}'@'{}'"
                       .format(_user, _addr)),
             mock.call("flush privileges")]
-        _helper.execute.assert_has_calls(_calls)
+        _helper.execute.assert_has_calls(
+            _calls, any_order=True)
 
         # Local
         _localhost = "localhost"
@@ -424,7 +425,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call("GRANT GRANT OPTION ON *.* TO '{}'@'{}'"
                       .format(_user, _localhost)),
             mock.call("flush privileges")]
-        _helper.execute.assert_has_calls(_calls)
+        _helper.execute.assert_has_calls(
+            _calls, any_order=True)
 
     def test_configure_instance(self):
         _pass = "clusterpass"
@@ -482,7 +484,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call("leadership.set.cluster-created"),
             mock.call("leadership.set.cluster-instance-configured-{}"
                       .format(_addr))]
-        self.is_flag_set.assert_has_calls(_is_flag_set_calls)
+        self.is_flag_set.assert_has_calls(_is_flag_set_calls, any_order=True)
         self.subprocess.check_output.assert_called_once_with(
             [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
             stderr=self.stdin)
@@ -490,7 +492,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _leader_set_calls = [
             mock.call({"cluster-instance-clustered-{}".format(_addr): True}),
             mock.call({"cluster-created": self.uuid_of_cluster})]
-        self.leader_set.assert_has_calls(_leader_set_calls)
+        self.leader_set.assert_has_calls(_leader_set_calls, any_order=True)
 
     def test_add_instance_to_cluster(self):
         _pass = "clusterpass"
@@ -585,7 +587,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(self.nova_unit7_ip, "nova", "nova"),
             mock.call(self.nova_unit7_ip, "nova_api", "nova"),
             mock.call(self.nova_unit7_ip, "nova_cell0", "nova")]
-        midbc.configure_db_for_hosts.assert_has_calls(_configure_db_calls)
+        midbc.configure_db_for_hosts.assert_has_calls(
+            _configure_db_calls, any_order=True)
 
         _set_calls = [
             mock.call(
@@ -608,7 +611,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
                 prefix="novacell0")]
-        self.interface.set_db_connection_info.assert_has_calls(_set_calls)
+        self.interface.set_db_connection_info.assert_has_calls(
+            _set_calls, any_order=True)
 
     def test_create_databases_and_users_db_router(self):
         # The test setup is a bit convoluted and requires mimicking reactive,
@@ -647,7 +651,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(self.kmr_unit7_ip, "mysqlrouteruser"),
             mock.call(self.nmr_unit5_ip, "mysqlrouteruser"),
             mock.call(self.nmr_unit7_ip, "mysqlrouteruser")]
-        midbc.configure_db_router.assert_has_calls(_conigure_db_router_calls)
+        midbc.configure_db_router.assert_has_calls(
+            _conigure_db_router_calls, any_order=True)
 
         _configure_db_calls = [
             mock.call(self.kmr_unit5_ip, "keystone", "keystone"),
@@ -658,7 +663,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(self.nmr_unit7_ip, "nova", "nova"),
             mock.call(self.nmr_unit7_ip, "nova_api", "nova"),
             mock.call(self.nmr_unit7_ip, "nova_cell0", "nova")]
-        midbc.configure_db_for_hosts.assert_has_calls(_configure_db_calls)
+        midbc.configure_db_for_hosts.assert_has_calls(
+            _configure_db_calls, any_order=True)
 
         _set_calls = [
             mock.call(
@@ -692,7 +698,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 allowed_units=" ".join(
                     [x.unit_name for x in self.nmr_db_router.joined_units]),
                 prefix="mysqlrouter")]
-        self.interface.set_db_connection_info.assert_has_calls(_set_calls)
+        self.interface.set_db_connection_info.assert_has_calls(
+            _set_calls, any_order=True)
 
     def test_configure_db_for_hosts(self):
         _db = "db"
@@ -722,7 +729,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual(
             _pass,
             midbc.configure_db_for_hosts(_json_addrs, _db, _user))
-        _helper.configure_db.assert_has_calls(_calls)
+        _helper.configure_db.assert_has_calls(
+            _calls, any_order=True)
 
     def test_configure_db_router(self):
         _user = "user"
@@ -751,7 +759,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual(
             _pass,
             midbc.configure_db_router(_json_addrs, _user))
-        _helper.configure_router.assert_has_calls(_calls)
+        _helper.configure_router.assert_has_calls(
+            _calls, any_order=True)
 
     def test_states_to_check(self):
         self.patch_object(

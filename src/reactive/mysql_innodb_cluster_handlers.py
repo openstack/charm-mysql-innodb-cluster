@@ -42,8 +42,10 @@ def non_leader_install():
     packages.
     """
     # Wait for leader to set mysql.passwd
-    with charm.provide_charm_instance() as instance: instance.install()
-    reactive.set_flag("charm.installed") instance.assess_status()
+    with charm.provide_charm_instance() as instance:
+        instance.install()
+        reactive.set_flag("charm.installed")
+        instance.assess_status()
 
 
 @reactive.when('charm.installed')
@@ -86,7 +88,7 @@ def send_cluster_connection_info(cluster):
 @reactive.when('cluster.available')
 def create_remote_cluster_user(cluster):
     """Create remote cluster user.
-    
+
     Create the remote cluster peer user and grant cluster permissions in the
     MySQL DB.
 
