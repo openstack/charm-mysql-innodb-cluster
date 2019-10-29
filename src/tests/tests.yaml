@@ -1,14 +1,13 @@
 charm_name: mysql-innodb-cluster
 configure:
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-# Zaza multi-model seems broken at the moment
-#- zaza.openstack.charm_tests.glance.setup.add_lts_image
+- full_model:
+    - zaza.openstack.charm_tests.glance.setup.add_lts_image
 tests:
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 dev_bundles:
-- eoan-full
 gate_bundles:
-- eoan-ha
-- eoan-full
+- eoan
+- full_model: eoan-full-ha
 smoke_bundles:
 - eoan

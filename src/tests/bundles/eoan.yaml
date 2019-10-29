@@ -7,8 +7,6 @@ applications:
     charm: ../../../mysql-innodb-cluster
     num_units: 3
     options:
-      #source: distro-proposed
-      source: ppa:racb/experimental
   keystone:
     charm: cs:~openstack-charmers-next/keystone
     num_units: 1
