@@ -392,8 +392,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type self: MySQLInnoDBClusterCharm instance
         :param address: Address of the MySQL instance to be configured
         :type address: str
-        :side effect: Executes MySQL Shell script to configure the instance for
-                      clustering
+        :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
         """
@@ -406,32 +405,26 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         ch_core.hookenv.log("Configuring instance for clustering: {}."
                             .format(address), "INFO")
-        _script_template = """
+        _script = """
         dba.configureInstance('{}:{}@{}');
         var myshell = shell.connect('{}:{}@{}');
         myshell.runSql("RESTART;");
-        """
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _script:
-            _script.write(_script_template.format(
-                self.cluster_user, self.cluster_password, address,
-                self.cluster_user, self.cluster_password, address))
-            _script.flush()
-
-            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _script.name])
-            try:
-                output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                ch_core.hookenv.log(
-                    "Failed configuring instance {}: {}"
-                    .format(address, e.output.decode("UTF-8")), "ERROR")
-                return
+        """.format(
+            self.cluster_user, self.cluster_password, address,
+            self.cluster_user, self.cluster_password, address)
+        try:
+            output = self.run_mysqlsh_script(_script)
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed configuring instance {}: {}"
+                .format(address, e.output.decode("UTF-8")), "ERROR")
+            return
 
         # After configuration of the remote instance, the remote instance
         # restarts mysql. We need to pause here for that to complete.
-        self._wait_until_connectable(username=self.cluster_user,
-                                     password=self.cluster_password,
-                                     address=address)
+        self.wait_until_connectable(username=self.cluster_user,
+                                    password=self.cluster_password,
+                                    address=address)
 
         ch_core.hookenv.log("Instance Configured {}: {}"
                             .format(address, output.decode("UTF-8")),
@@ -446,8 +439,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         :param self: Self
         :type self: MySQLInnoDBClusterCharm instance
-        :side effect: Executes MySQL Shell script to create the MySQL InnoDB
-                      Cluster
+        :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
         """
@@ -464,29 +456,22 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                                 "WARNING")
             return
 
-        _script_template = """
+        _script = """
         shell.connect("{}:{}@{}")
         var cluster = dba.createCluster("{}");
-        """
+        """.format(
+            self.cluster_user, self.cluster_password, self.cluster_address,
+            self.options.cluster_name, self.cluster_user, self.cluster_address,
+            self.cluster_password)
         ch_core.hookenv.log("Creating cluster: {}."
                             .format(self.options.cluster_name), "INFO")
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _script:
-            _script.write(_script_template.format(
-                self.cluster_user, self.cluster_password, self.cluster_address,
-                self.options.cluster_name,
-                self.cluster_user,
-                self.cluster_address,
-                self.cluster_password))
-            _script.flush()
-
-            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _script.name])
-            try:
-                output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                ch_core.hookenv.log(
-                    "Failed creating cluster: {}"
-                    .format(e.output.decode("UTF-8")), "ERROR")
-                return
+        try:
+            output = self.run_mysqlsh_script(_script)
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed creating cluster: {}"
+                .format(e.output.decode("UTF-8")), "ERROR")
+            return
         ch_core.hookenv.log("Cluster Created: {}"
                             .format(output.decode("UTF-8")),
                             level="DEBUG")
@@ -501,8 +486,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type self: MySQLInnoDBClusterCharm instance
         :param address: Address of the MySQL instance to be configured
         :type address: str
-        :side effect: Executes MySQL Shell script to add the MySQL instance to
-                      the cluster
+        :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
         """
@@ -515,7 +499,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         ch_core.hookenv.log("Adding instance, {}, to the cluster."
                             .format(address), "INFO")
-        _script_template = """
+        _script = """
         shell.connect("{}:{}@{}")
         var cluster = dba.getCluster("{}");
 
@@ -523,23 +507,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         cluster.addInstance(
             {{user: "{}", host: "{}", password: "{}", port: "3306"}},
             {{recoveryMethod: "clone"}});
-        """
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _script:
-            _script.write(_script_template.format(
-                self.cluster_user, self.cluster_password, self.cluster_address,
-                self.options.cluster_name,
-                self.cluster_user, address, self.cluster_password))
-            _script.flush()
-
-            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _script.name])
-            try:
-                output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                ch_core.hookenv.log(
-                    "Failed adding instance {} to cluster: {}"
-                    .format(address, e.output.decode("UTF-8")), "ERROR")
-                return
+        """.format(
+            self.cluster_user, self.cluster_password, self.cluster_address,
+            self.options.cluster_name,
+            self.cluster_user, address, self.cluster_password)
+        try:
+            output = self.run_mysqlsh_script(_script)
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed adding instance {} to cluster: {}"
+                .format(address, e.output.decode("UTF-8")), "ERROR")
+            return
         ch_core.hookenv.log("Instance Clustered {}: {}"
                             .format(address, output.decode("UTF-8")),
                             level="DEBUG")
@@ -557,38 +535,40 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type self: MySQLInnoDBClusterCharm instance
         :param nocache: Do not return cached data
         :type nocache: Boolean
-        :side effect: Executes MySQL Shell script to determine cluster status
+        :side effect: Calls self.check_mysql_connection
         :returns: Dictionary cluster status output
-        :rtype: dict
+        :rtype: Union[None, dict]
         """
         # Try the cached version first
         if self._cached_cluster_status and not nocache:
             return self._cached_cluster_status
 
         ch_core.hookenv.log("Checking cluster status.", "DEBUG")
-        _script_template = """
+        # Cluster must be up and healthy
+        try:
+            self.wait_until_cluster_available()
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Cluster is unavailable: {}"
+                .format(e.output.decode("UTF-8")), "ERROR")
+            return
+
+        _script = """
         shell.connect("{}:{}@{}")
         var cluster = dba.getCluster("{}");
 
         print(cluster.status())
-        """
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _script:
-            _script.write(_script_template.format(
-                self.cluster_user, self.cluster_password, self.cluster_address,
-                self.cluster_name))
-            _script.flush()
-
-            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _script.name])
-            try:
-                output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                ch_core.hookenv.log(
-                    "Failed checking cluster status: {}"
-                    .format(e.output.decode("UTF-8")), "ERROR")
-                return
-            self._cached_cluster_status = json.loads(output.decode("UTF-8"))
-            return self._cached_cluster_status
+        """.format(self.cluster_user, self.cluster_password,
+                   self.cluster_address, self.cluster_name)
+        try:
+            output = self.run_mysqlsh_script(_script)
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed checking cluster status: {}"
+                .format(e.output.decode("UTF-8")), "ERROR")
+            return
+        self._cached_cluster_status = json.loads(output.decode("UTF-8"))
+        return self._cached_cluster_status
 
     def get_cluster_status_summary(self, nocache=False):
         """Get cluster status summary
@@ -604,12 +584,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
         :returns: String status. i.e. "OK"
-        :rtype: str
+        :rtype: Union[None, str]
         """
         if self._cached_cluster_status and not nocache:
             _status = self._cached_cluster_status
         else:
             _status = self.get_cluster_status(nocache=nocache)
+        if not _status:
+            return
         return _status["defaultReplicaSet"]["status"]
 
     def get_cluster_status_text(self, nocache=False):
@@ -626,12 +608,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
         :returns: String status text. i.e. "Cluster is ONLINE"...
-        :rtype: str
+        :rtype: Union[None, str]
         """
         if self._cached_cluster_status and not nocache:
             _status = self._cached_cluster_status
         else:
             _status = self.get_cluster_status(nocache=nocache)
+        if not _status:
+            return
         return _status["defaultReplicaSet"]["statusText"]
 
     def get_cluster_instance_mode(self, nocache=False):
@@ -648,12 +632,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
         :returns: String mode. i.e. "R/W" or "R/O"
-        :rtype: str
+        :rtype: Union[None, str]
         """
         if self._cached_cluster_status and not nocache:
             _status = self._cached_cluster_status
         else:
             _status = self.get_cluster_status(nocache=nocache)
+        if not _status:
+            return
         return (_status["defaultReplicaSet"]["topology"]
                 ["{}:{}".format(self.cluster_address, self.cluster_port)]
                 ["mode"])
@@ -889,7 +875,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             return
 
         # Check the state of the cluster. nocache=True will get live info
-        if "OK" not in self.get_cluster_status_summary(nocache=True):
+        _cluster_status = self.get_cluster_status_summary(nocache=True)
+        if not _cluster_status or "OK" not in _cluster_status:
             ch_core.hookenv.status_set(
                 "blocked",
                 "MySQL InnoDB Cluster not healthy: {}"
@@ -935,7 +922,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     @tenacity.retry(wait=tenacity.wait_fixed(10),
                     reraise=True,
                     stop=tenacity.stop_after_delay(5))
-    def _wait_until_connectable(
+    def wait_until_connectable(
             self, username=None, password=None, address=None):
         """Wait until MySQL instance is accessible.
 
@@ -962,3 +949,52 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         if not self.check_mysql_connection(
                 username=username, password=password, address=address):
             raise CannotConnectToMySQL("Unable to connect to MySQL")
+
+    @tenacity.retry(wait=tenacity.wait_fixed(10),
+                    reraise=True,
+                    stop=tenacity.stop_after_delay(5))
+    def wait_until_cluster_available(self):
+        """Wait until MySQL InnoDB Cluster is available.
+
+        Attempt a running getCluster until the cluster is healthy
+        using tenacity until successful or number of retries reached.
+
+        This is useful for waiting when the MySQL cluster may be restarting
+        instances and we want to wait until the cluster is back to healthy.
+
+        Warning: Use sparingly. This function asserts connectivity and raises
+        CannotConnectToMySQL if it is unsuccessful on all retries.
+
+        :side effect: Calls self.run_mysqlsh_script
+        :raises subprocess.CalledProcessError: Raises CalledProcessError if the
+                                               number of retires is exceeded.
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        _script = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+        """.format(
+            self.cluster_user, self.cluster_password, self.cluster_address,
+            self.cluster_name)
+        self.run_mysqlsh_script(_script)
+
+    def run_mysqlsh_script(self, script):
+        """Execute a MySQL shell script
+
+        :param script: Mysqlsh script
+        :type script: str
+        :side effect: Calls subprocess.check_output
+        :raises subprocess.CalledProcessError: Raises CalledProcessError if the
+                                               script gets a non-zero return
+                                               code.
+        :returns: subprocess output
+        :rtype: UTF-8 byte string
+        """
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _file:
+            _file.write(script)
+            _file.flush()
+
+            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _file.name])
+            return subprocess.check_output(
+                cmd, stderr=subprocess.STDOUT)

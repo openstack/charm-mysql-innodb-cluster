@@ -41,7 +41,6 @@ basic.init_config_states()
 
 import charms_openstack.bus
 import charms_openstack.charm as charm
-import charm.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
 
 import charmhelpers.core as ch_core
 

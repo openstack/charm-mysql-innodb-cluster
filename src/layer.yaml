@@ -1,4 +1,5 @@
 includes:
+  - layer:coordinator
   - layer:leadership
   - layer:snap
   - layer:openstack-principle

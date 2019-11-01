@@ -14,7 +14,7 @@
 
 import mock
 
-import charm.mysql_innodb_cluster as mysql_innodb_cluster
+import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster
 import reactive.mysql_innodb_cluster_handlers as handlers
 
 import charms_openstack.test_utils as test_utils
@@ -48,6 +48,11 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "cluster.available",),
                 "signal_clustered": (
                     "leadership.set.cluster-created", "cluster.available",),
+                "config_changed": (
+                    "leadership.set.cluster-instances-clustered",
+                    "config.changed",),
+                "config_changed_restart": (
+                    "coordinator.granted.config-changed-restart",),
                 "shared_db_respond": (
                     "leadership.is_leader",
                     "leadership.set.cluster-instances-clustered",
@@ -71,6 +76,8 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                 "add_instances_to_cluster": (
                     "leadership.set.cluster-instances-clustered",),
                 "signal_clustered": ("leadership.is_leader",),
+                "shared_db_respond": ("charm.paused",),
+                "db_router_respond": ("charm.paused",),
             },
         }
         # test that the hooks were registered via the
@@ -213,6 +220,13 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.is_flag_set.return_value = True
         handlers.signal_clustered(self.cluster)
         self.cluster.set_unit_clustered.assert_called_once()
+
+    def test_config_changed(self):
+        # Leader node
+        self.is_flag_set.return_value = True
+        handlers.config_changed()
+        self.midbc.render_all_configs.assert_called_once()
+        self.midbc.wait_until_cluster_available.assert_called_once()
 
     def test_shared_db_respond(self):
         handlers.shared_db_respond(self.shared_db)

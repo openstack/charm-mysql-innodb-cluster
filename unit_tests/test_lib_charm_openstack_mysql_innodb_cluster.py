@@ -18,7 +18,7 @@ import mock
 
 import charms_openstack.test_utils as test_utils
 
-import charm.mysql_innodb_cluster as mysql_innodb_cluster
+import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster
 
 
 class TestMySQLInnoDBClusterProperties(test_utils.PatchHelper):
@@ -439,8 +439,9 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc._get_password = mock.MagicMock()
         midbc._get_password.side_effect = self._fake_data
-        midbc._wait_until_connectable = mock.MagicMock()
-        _script_template = """
+        midbc.wait_until_connectable = mock.MagicMock()
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        _script = """
         dba.configureInstance('{}:{}@{}');
         var myshell = shell.connect('{}:{}@{}');
         myshell.runSql("RESTART;");
@@ -451,11 +452,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.configure_instance(_addr)
         self.is_flag_set.assert_called_once_with(
             "leadership.set.cluster-instance-configured-{}".format(_addr))
-        self.subprocess.check_output.assert_called_once_with(
-            [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
-            stderr=self.stdin)
-        self.file.write.assert_called_once_with(_script_template)
-        midbc._wait_until_connectable.assert_called_once_with(
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+        midbc.wait_until_connectable.assert_called_once_with(
             address=_addr, username=midbc.cluster_user,
             password=midbc.cluster_password)
         self.leader_set.assert_called_once_with(
@@ -472,9 +470,10 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc._get_password = mock.MagicMock()
         midbc._get_password.side_effect = self._fake_data
-        midbc._wait_until_connectable = mock.MagicMock()
+        midbc.wait_until_connectable = mock.MagicMock()
+        midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.options.cluster_name = _name
-        _script_template = """
+        _script = """
         shell.connect("{}:{}@{}")
         var cluster = dba.createCluster("{}");
         """.format(
@@ -487,10 +486,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call("leadership.set.cluster-instance-configured-{}"
                       .format(_addr))]
         self.is_flag_set.assert_has_calls(_is_flag_set_calls, any_order=True)
-        self.subprocess.check_output.assert_called_once_with(
-            [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
-            stderr=self.stdin)
-        self.file.write.assert_called_once_with(_script_template)
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
         _leader_set_calls = [
             mock.call({"cluster-instance-clustered-{}".format(_addr): True}),
             mock.call({"cluster-created": self.uuid_of_cluster})]
@@ -508,9 +504,10 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc._get_password = mock.MagicMock()
         midbc._get_password.side_effect = self._fake_data
-        midbc._wait_until_connectable = mock.MagicMock()
+        midbc.wait_until_connectable = mock.MagicMock()
+        midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.options.cluster_name = _name
-        _script_template = """
+        _script = """
         shell.connect("{}:{}@{}")
         var cluster = dba.getCluster("{}");
 
@@ -527,10 +524,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.is_flag_set.assert_called_once_with(
             "leadership.set.cluster-instance-clustered-{}"
             .format(_remote_addr))
-        self.subprocess.check_output.assert_called_once_with(
-            [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
-            stderr=self.stdin)
-        self.file.write.assert_called_once_with(_script_template)
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
         self.leader_set.assert_called_once_with(
             {"cluster-instance-clustered-{}".format(_remote_addr): True})
 
@@ -853,13 +847,14 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _string = "status output"
         _json_string = '"status output"'
         self.get_relation_ip.return_value = _local_addr
-        self.subprocess.check_output.return_value = (
-            _json_string.encode("UTF-8"))
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.options.cluster_name = _name
+        midbc.wait_until_cluster_available = mock.MagicMock()
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _json_string.encode("UTF-8")
 
-        _script_template = """
+        _script = """
         shell.connect("{}:{}@{}")
         var cluster = dba.getCluster("{}");
 
@@ -869,22 +864,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             midbc.cluster_address, midbc.cluster_name)
 
         self.assertEqual(_string, midbc.get_cluster_status())
-        self.subprocess.check_output.assert_called_once_with(
-            [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
-            stderr=self.stdin)
-        self.file.write.assert_called_once_with(_script_template)
+        midbc.wait_until_cluster_available.assert_called_once()
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
         # Cached data
-        self.subprocess.check_output.reset_mock()
+        midbc.run_mysqlsh_script.reset_mock()
         midbc._cached_cluster_status = _string
         self.assertEqual(_string, midbc.get_cluster_status())
-        self.subprocess.check_output.assert_not_called()
+        midbc.run_mysqlsh_script.assert_not_called()
 
         # Nocache requested
-        self.subprocess.check_output.reset_mock()
+        midbc.run_mysqlsh_script.reset_mock()
         midbc._cached_cluster_status = _string
         self.assertEqual(_string, midbc.get_cluster_status(nocache=True))
-        self.subprocess.check_output.assert_called_once()
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
     def test_get_cluster_status_summary(self):
         _status_dict = {"defaultReplicaSet": {"status": "OK"}}
@@ -990,7 +983,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper.connect.assert_called_once_with(
             user="root", password=_root_pass, host="localhost")
 
-    def test__wait_unit_connectable(self):
+    def test_wait_unit_connectable(self):
         _pass = "pass"
         _user = "user"
         _addr = "10.20.40.40"
@@ -1001,7 +994,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
 
         # Successful connect
         _conn_check.return_value = True
-        midbc._wait_until_connectable(
+        midbc.wait_until_connectable(
             username=_user, password=_pass, address=_addr)
         _conn_check.assert_called_once_with(
             username=_user, password=_pass, address=_addr)
@@ -1010,6 +1003,40 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _conn_check.reset_mock()
         _conn_check.return_value = False
         with self.assertRaises(mysql_innodb_cluster.CannotConnectToMySQL):
-            midbc._wait_until_connectable()
+            midbc.wait_until_connectable()
         _conn_check.assert_called_once_with(
             username=None, password=None, address=None)
+
+    def test_wait_unit_cluster_available(self):
+        _name = "theCluster"
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        _script = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+        """.format(
+            midbc.cluster_user, midbc.cluster_password,
+            midbc.cluster_address, midbc.cluster_name)
+
+        # Cluster available
+        midbc.wait_until_cluster_available()
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+        # Cluster not available
+        midbc.run_mysqlsh_script.reset_mock()
+        midbc.run_mysqlsh_script.side_effect = (Exception)
+        with self.assertRaises(Exception):
+            midbc.wait_until_cluster_available()
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+    def test_run_mysqlsh_script(self):
+        _byte_string = "UTF-8 byte string".encode("UTF-8")
+        self.subprocess.check_output.return_value = _byte_string
+        _script = """print("Hello World!")"""
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(_byte_string, midbc.run_mysqlsh_script(_script))
+        self.subprocess.check_output.assert_called_once_with(
+            [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
+            stderr=self.stdin)
+        self.file.write.assert_called_once_with(_script)

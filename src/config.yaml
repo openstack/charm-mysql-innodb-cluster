@@ -18,3 +18,23 @@ options:
     type: string
     description: Cluster name for the InnoDB cluster. Must be unique.
     default: jujuCluster
+  table-open-cache:
+    type: int
+    default: 2048
+    description:
+      Sets table_open_cache (formerly known as table_cache) to mysql.
+  max-connections:
+    type: int
+    default: 600
+    description: |
+      Maximum connections to allow. A value of -1 means use the server's
+      compiled-in default. This is not typically that useful so the
+      charm will configure PXC with a default max-connections value of 600.
+      Note: Connections take up memory resources. Either at startup time with
+      performance-schema=True or during run time with performance-schema=False.
+      This value is a balance between connection exhaustion and memory
+      exhaustion.
+      .
+      Consult a MySQL memory calculator like http://www.mysqlcalculator.com/ to
+      understand memory resources consumed by connections.
+      See also performance-schema.

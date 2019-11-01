@@ -1,3 +1,4 @@
+import charms.coordinator as coordinator
 import charms.reactive as reactive
 import charms.leadership as leadership
 
@@ -6,13 +7,12 @@ import charms_openstack.charm as charm
 
 import charmhelpers.core as ch_core
 
-import charm.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
+import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
 
 charms_openstack.bus.discover()
 
 
 charm.use_defaults(
-    'config.changed',
     'update-status',
     'upgrade-charm',
     'certificates.available')
@@ -206,9 +206,36 @@ def signal_clustered(cluster):
         instance.assess_status()
 
 
+@reactive.when('leadership.set.cluster-instances-clustered')
+@reactive.when('config.changed')
+def config_changed():
+    if reactive.is_flag_set('leadership.is_leader'):
+        with charm.provide_charm_instance() as instance:
+            instance.render_all_configs()
+            instance.wait_until_cluster_available()
+    else:
+        with charm.provide_charm_instance() as instance:
+            try:
+                instance.wait_until_cluster_available()
+            except:
+                ch_core.hookenv.log(
+                    "Cluster was not availble as expected.", "WARNING")
+        ch_core.hookenv.log("Non-leader requst to restart.", "DEBUG")
+        coordinator.acquire('config-changed-restart')
+
+
+@reactive.when('coordinator.granted.config-changed-restart')
+def config_changed_restart():
+    with charm.provide_charm_instance() as instance:
+        ch_core.hookenv.status_set(
+            'maintenance', 'Rolling config changed and restart.')
+        instance.render_all_configs()
+
+
 @reactive.when('leadership.is_leader')
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('shared-db.available')
+@reactive.when_not('charm.paused')
 def shared_db_respond(shared_db):
     """Respond to Shared DB Requests.
 
@@ -223,6 +250,7 @@ def shared_db_respond(shared_db):
 @reactive.when('leadership.is_leader')
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('db-router.available')
+@reactive.when_not('charm.paused')
 def db_router_respond(db_router):
     """Respond to DB Router Requests.
 

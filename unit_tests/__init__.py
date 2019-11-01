@@ -38,6 +38,8 @@ charms_openstack.test_mocks.mock_charmhelpers()
 import charms
 charms.leadership = mock.MagicMock()
 sys.modules['charms.leadership'] = charms.leadership
+charms.coordinator = mock.MagicMock()
+sys.modules['charms.coordinator'] = charms.coordinator
 
 charmhelpers = mock.MagicMock()
 charmhelpers.contrib.database = mock.MagicMock()

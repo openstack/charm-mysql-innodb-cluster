@@ -3,7 +3,11 @@ configure:
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
 - full_model:
     - zaza.openstack.charm_tests.glance.setup.add_lts_image
+# The pause and resume test validates changing the R/W primary.
+# Running the keystone tests after the MySQLInnoDBClusterTests
+# validates DB functionality after a change in the R/W primary.
 tests:
+- zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 dev_bundles:
 gate_bundles:
