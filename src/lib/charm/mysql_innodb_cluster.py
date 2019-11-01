@@ -119,6 +119,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     # For internal use with get_db_data
     _unprefixed = "MICUP"
 
+    # For caching cluster status information
+    _cached_cluster_status = None
+
     @property
     def mysqlsh_bin(self):
         """Determine binary path for MySQL Shell.
@@ -178,6 +181,19 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: str
         """
         return self.options.cluster_address
+
+    @property
+    def cluster_port(self):
+        """Determine this unit's cluster port.
+
+        Using the class method determine this unit's cluster address.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Port
+        :rtype: str
+        """
+        return "3306"
 
     @property
     def cluster_user(self):
@@ -530,6 +546,118 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({"cluster-instance-clustered-{}"
                                .format(address): True})
 
+    def get_cluster_status(self, nocache=False):
+        """Get cluster status
+
+        Return cluster.status() as a dictionary. If cached data exists and is
+        not explicity avoided with the nocache parameter, avoid the expensive
+        DB query.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param nocache: Do not return cached data
+        :type nocache: Boolean
+        :side effect: Executes MySQL Shell script to determine cluster status
+        :returns: Dictionary cluster status output
+        :rtype: dict
+        """
+        # Try the cached version first
+        if self._cached_cluster_status and not nocache:
+            return self._cached_cluster_status
+
+        ch_core.hookenv.log("Checking cluster status.", "DEBUG")
+        _script_template = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+
+        print(cluster.status())
+        """
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _script:
+            _script.write(_script_template.format(
+                self.cluster_user, self.cluster_password, self.cluster_address,
+                self.cluster_name))
+            _script.flush()
+
+            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _script.name])
+            try:
+                output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as e:
+                ch_core.hookenv.log(
+                    "Failed checking cluster status: {}"
+                    .format(e.output.decode("UTF-8")), "ERROR")
+                return
+            self._cached_cluster_status = json.loads(output.decode("UTF-8"))
+            return self._cached_cluster_status
+
+    def get_cluster_status_summary(self, nocache=False):
+        """Get cluster status summary
+
+        Return cluster.status()["defaultReplicaSet"]["status"]. This will be
+        "OK" if the cluster is healhty. If cached data exists and is not
+        explicity avoided with the nocache parameter, avoid the call to
+        self.get_cluster_status.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param nocache: Do not return cached data
+        :type nocache: Boolean
+        :side effect: Calls self.get_cluster_status
+        :returns: String status. i.e. "OK"
+        :rtype: str
+        """
+        if self._cached_cluster_status and not nocache:
+            _status = self._cached_cluster_status
+        else:
+            _status = self.get_cluster_status(nocache=nocache)
+        return _status["defaultReplicaSet"]["status"]
+
+    def get_cluster_status_text(self, nocache=False):
+        """Get cluster status text
+
+        Return cluster.status()["defaultReplicaSet"]["statusText"]. This is
+        useful information if the cluster is not healthy. If cached data
+        exists and is not explicity avoided with the nocache parameter, avoid
+        the call to self.get_cluster_status.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param nocache: Do not return cached data
+        :type nocache: Boolean
+        :side effect: Calls self.get_cluster_status
+        :returns: String status text. i.e. "Cluster is ONLINE"...
+        :rtype: str
+        """
+        if self._cached_cluster_status and not nocache:
+            _status = self._cached_cluster_status
+        else:
+            _status = self.get_cluster_status(nocache=nocache)
+        return _status["defaultReplicaSet"]["statusText"]
+
+    def get_cluster_instance_mode(self, nocache=False):
+        """Get cluster status mode
+
+        Return cluster.status()["defaultReplicaSet"]["topology"]. This will be
+        "R/W" or "R/O" depending on the mode of this instance in the cluster.
+        If cached data exists and is not explicity avoided with the nocache
+        parameter, avoid the call to self.get_cluster_status.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param nocache: Do not return cached data
+        :type nocache: Boolean
+        :side effect: Calls self.get_cluster_status
+        :returns: String mode. i.e. "R/W" or "R/O"
+        :rtype: str
+        """
+        if self._cached_cluster_status and not nocache:
+            _status = self._cached_cluster_status
+        else:
+            _status = self.get_cluster_status(nocache=nocache)
+        return (_status["defaultReplicaSet"]["topology"]
+                ["{}:{}".format(self.cluster_address, self.cluster_port)]
+                ["mode"])
+
     # TODO: Generalize and move to mysql charmhelpers
     def get_allowed_units(self, database, username, relation_id):
         """Get Allowed Units.
@@ -728,35 +856,51 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         return states_to_check
 
-    def custom_assess_status_check(self):
-        """Custom assess status check.
+    def _assess_status(self):
+        """Completely override _assess_status
 
         Custom assess status check that validates connectivity to this unit's
-        MySQL instance.
-
-        Returns tuple of (sate, message), if there is a problem to report to
-        status output, or (None, None) if all is well.
+        MySQL instance, checks the health of the cluster and reports this
+        unit's cluster mode. i.e. R/W or R/O.
 
         :param self: Self
         :type self: MySQLInnoDBClusterCharm instance
-        :returns: Either (state, message) or (None, None)
-        :rtype: Union[tuple(str, str), tuple(None, None)]
+        :side effect: Calls status_set
+        :returns: This function is called for its side effect
+        :rtype: None
         """
+        # Set version
+        ch_core.hookenv.application_version_set(self.application_version)
         # Start with default checks
         for f in [self.check_if_paused,
                   self.check_interfaces,
-                  self.check_mandatory_config]:
+                  self.check_mandatory_config,
+                  self.check_services_running]:
             state, message = f()
             if state is not None:
                 ch_core.hookenv.status_set(state, message)
-                return state, message
+                return
 
         # We should not get here until there is a connection to the
         # cluster available.
         if not self.check_mysql_connection():
-            return "blocked", "MySQL is down"
+            ch_core.hookenv.status_set(
+                "blocked", "MySQL is down on this instance")
+            return
 
-        return None, None
+        # Check the state of the cluster. nocache=True will get live info
+        if "OK" not in self.get_cluster_status_summary(nocache=True):
+            ch_core.hookenv.status_set(
+                "blocked",
+                "MySQL InnoDB Cluster not healthy: {}"
+                .format(self.get_cluster_status_text()))
+            return
+
+        # All is good. Report this instance's mode to workgroup status
+        ch_core.hookenv.status_set(
+            "active",
+            "Unit is ready: Mode: {}"
+            .format(self.get_cluster_instance_mode()))
 
     def check_mysql_connection(
             self, username=None, password=None, address=None):

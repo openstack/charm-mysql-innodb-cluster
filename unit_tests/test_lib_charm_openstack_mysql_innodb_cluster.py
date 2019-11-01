@@ -70,6 +70,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.patch_object(mysql_innodb_cluster.leadership, "leader_set")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "leader_get")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "config")
+        self.patch_object(
+            mysql_innodb_cluster.ch_core.hookenv, "application_version_set")
         self.leader_get.side_effect = self._fake_leader_data
         self.config.side_effect = self._fake_config_data
         self.leader_data = {}
@@ -789,35 +791,175 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertTrue(
             "leadership.set.cluster-instances-clustered" in _states_to_check)
 
-    def test_custom_assess_status_check(self):
+    def test__assess_status(self):
         _check = mock.MagicMock()
         _check.return_value = None, None
         _conn_check = mock.MagicMock()
         _conn_check.return_value = True
+        _status = mock.MagicMock()
+        _status.return_value = "OK"
+        self.patch_object(
+            mysql_innodb_cluster.charms_openstack.charm.OpenStackCharm,
+            "application_version")
+        self.patch_object(
+            mysql_innodb_cluster.ch_core.hookenv,
+            "status_set")
 
         # All is well
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.check_if_paused = _check
         midbc.check_interfaces = _check
         midbc.check_mandatory_config = _check
+        midbc.check_services_running = _check
         midbc.check_mysql_connection = _conn_check
+        midbc.get_cluster_status_summary = _status
+        midbc.get_cluster_status_text = _status
+        midbc.get_cluster_instance_mode = _status
 
-        self.assertEqual((None, None), midbc.custom_assess_status_check())
-        self.assertEqual(3, len(_check.mock_calls))
+        midbc._assess_status()
+        self.assertEqual(4, len(_check.mock_calls))
         _conn_check.assert_called_once_with()
+        self.assertEqual(2, len(_status.mock_calls))
+        self.status_set.assert_called_once_with(
+            "active", "Unit is ready: Mode: OK")
 
         # First checks fail
+        self.status_set.reset_mock()
         _check.return_value = "blocked", "for some reason"
-        self.assertEqual(
-            ("blocked", "for some reason"),
-            midbc.custom_assess_status_check())
+        midbc._assess_status()
+        self.status_set.assert_called_once_with(
+            "blocked", "for some reason")
 
         # MySQL connect fails
+        self.status_set.reset_mock()
         _check.return_value = None, None
         _conn_check.return_value = False
-        self.assertEqual(
-            ("blocked", "MySQL is down"),
-            midbc.custom_assess_status_check())
+        midbc._assess_status()
+        self.status_set.assert_called_once_with(
+            "blocked", "MySQL is down on this instance")
+
+        # Cluster not healthy
+        self.status_set.reset_mock()
+        _status.return_value = "Cluster not healthy"
+        _check.return_value = None, None
+        _conn_check.return_value = True
+        midbc._assess_status()
+        self.status_set.assert_called_once_with(
+            "blocked", "MySQL InnoDB Cluster not healthy: Cluster not healthy")
+
+    def test_get_cluster_status(self):
+        _local_addr = "10.10.50.50"
+        _name = "theCluster"
+        _string = "status output"
+        _json_string = '"status output"'
+        self.get_relation_ip.return_value = _local_addr
+        self.subprocess.check_output.return_value = (
+            _json_string.encode("UTF-8"))
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.options.cluster_name = _name
+
+        _script_template = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+
+        print(cluster.status())
+        """.format(
+            midbc.cluster_user, midbc.cluster_password,
+            midbc.cluster_address, midbc.cluster_name)
+
+        self.assertEqual(_string, midbc.get_cluster_status())
+        self.subprocess.check_output.assert_called_once_with(
+            [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
+            stderr=self.stdin)
+        self.file.write.assert_called_once_with(_script_template)
+
+        # Cached data
+        self.subprocess.check_output.reset_mock()
+        midbc._cached_cluster_status = _string
+        self.assertEqual(_string, midbc.get_cluster_status())
+        self.subprocess.check_output.assert_not_called()
+
+        # Nocache requested
+        self.subprocess.check_output.reset_mock()
+        midbc._cached_cluster_status = _string
+        self.assertEqual(_string, midbc.get_cluster_status(nocache=True))
+        self.subprocess.check_output.assert_called_once()
+
+    def test_get_cluster_status_summary(self):
+        _status_dict = {"defaultReplicaSet": {"status": "OK"}}
+        _status_obj = mock.MagicMock()
+        _status_obj.return_value = _status_dict
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_status = _status_obj
+
+        self.assertEqual("OK", midbc.get_cluster_status_summary())
+        _status_obj.assert_called_once_with(nocache=False)
+
+        # Cached data
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual("OK", midbc.get_cluster_status_summary())
+        _status_obj.assert_not_called()
+
+        # Nocache requested
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual("OK", midbc.get_cluster_status_summary(nocache=True))
+        _status_obj.assert_called_once_with(nocache=True)
+
+    def test_get_cluster_status_text(self):
+        _status_dict = {"defaultReplicaSet": {"statusText": "Text"}}
+        _status_obj = mock.MagicMock()
+        _status_obj.return_value = _status_dict
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_status = _status_obj
+
+        self.assertEqual("Text", midbc.get_cluster_status_text())
+        _status_obj.assert_called_once_with(nocache=False)
+
+        # Cached data
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual("Text", midbc.get_cluster_status_text())
+        _status_obj.assert_not_called()
+
+        # Nocache requested
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual("Text", midbc.get_cluster_status_text(nocache=True))
+        _status_obj.assert_called_once_with(nocache=True)
+
+    def test_get_cluster_instance_mode(self):
+        _local_addr = "10.10.50.50"
+        self.get_relation_ip.return_value = _local_addr
+        _mode = "R/O"
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        _status_dict = {
+            "defaultReplicaSet":
+                {"topology":
+                    {"{}:{}".format(_local_addr, midbc.cluster_port):
+                        {"mode": _mode}}}}
+        _status_obj = mock.MagicMock()
+        _status_obj.return_value = _status_dict
+        midbc.get_cluster_status = _status_obj
+
+        self.assertEqual(_mode, midbc.get_cluster_instance_mode())
+        _status_obj.assert_called_once_with(nocache=False)
+
+        # Cached data
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual(_mode, midbc.get_cluster_instance_mode())
+        _status_obj.assert_not_called()
+
+        # Nocache requested
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual(_mode, midbc.get_cluster_instance_mode(nocache=True))
+        _status_obj.assert_called_once_with(nocache=True)
 
     def test_check_mysql_connection(self):
         self.patch_object(
