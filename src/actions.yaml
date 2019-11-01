@@ -1,0 +1,4 @@
+cluster-status:
+  description: |
+    JSON dump of the cluster schema and status. This action can be used to
+    determine the RW and RO instances.
