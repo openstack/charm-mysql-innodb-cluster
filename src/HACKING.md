@@ -9,18 +9,10 @@ You can find its source code here: <https://opendev.org/openstack/charm-mysql-in
 # To Do
 
 Actions:
- Backups
- Password change
- Pause Resume
- Service stop/start
+ Promote R/W
  Rejoin unit
    cluster.rejoinInstance()
- Bootstrap
  
 Cold Start
-
-Testing
-  Destruction of RW node testing
-  Juju leader changes
 
 Certificates Relation with Vault

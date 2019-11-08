@@ -38,7 +38,7 @@ def server_id(cls):
     """Determine this unit's server ID.
 
     :param cls: Class
-    :type cls: MySQLInnoDBClusterCharm class
+    :type cls: ConfigurationAdapter class
     :returns: String server ID
     :rtype: str
     """
@@ -53,7 +53,7 @@ def cluster_address(cls):
     Using the relation binding determine this unit's cluster address.
 
     :param cls: Class
-    :type cls: MySQLInnoDBClusterCharm class
+    :type cls: ConfigurationAdapter class
     :returns: Address
     :rtype: str
     """
@@ -68,7 +68,7 @@ def shared_db_address(cls):
     relation.
 
     :param cls: Class
-    :type cls: MySQLInnoDBClusterCharm class
+    :type cls: ConfigurationAdapter class
     :returns: Address
     :rtype: str
     """
@@ -83,7 +83,7 @@ def db_router_address(cls):
     relation.
 
     :param cls: Class
-    :type cls: MySQLInnoDBClusterCharm class
+    :type cls: ConfigurationAdapter class
     :returns: Address
     :rtype: str
     """
