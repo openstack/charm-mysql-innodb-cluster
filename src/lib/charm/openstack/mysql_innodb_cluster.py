@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import json
+import os
 import subprocess
 import tenacity
 import tempfile
@@ -998,3 +1000,44 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _file.name])
             return subprocess.check_output(
                 cmd, stderr=subprocess.STDOUT)
+
+    def mysqldump(self, backup_dir, databases=None):
+        """Execute a MySQL dump
+
+        :param backup_dir: Path to the backup directory
+        :type backup_dir: str
+        :param databases: Comma delimited database names
+        :type database: str
+        :side effect: Calls subprocess.check_call
+        :raises subprocess.CalledProcessError: If the mysqldump fails
+        :returns: Path to the mysqldump file
+        :rtype: str
+        """
+        _user = "root"
+        _delimiter = ","
+        if not os.path.exists(backup_dir):
+            ch_core.host.mkdir(
+                backup_dir, owner="mysql", group="mysql", perms=0o750)
+
+        bucmd = ["/usr/bin/mysqldump", "-u", _user,
+                 "-p{}".format(self.mysql_password),
+                 "--triggers", "--routines", "--events",
+                 "--ignore-table=mysql.event"]
+        if databases is not None:
+            _filename = os.path.join(
+                backup_dir,
+                "mysqldump-{}-{}".format(
+                    "-".join(databases.split(_delimiter)),
+                    datetime.datetime.now().strftime("%Y%m%d%H%M")))
+            bucmd.extend(["--result-file", _filename, "--databases"])
+            bucmd.extend(databases.split(_delimiter))
+        else:
+            _filename = os.path.join(
+                backup_dir,
+                "mysqldump-all-databases-{}".format(
+                    datetime.datetime.now().strftime("%Y%m%d%H%M")))
+            bucmd.extend(["--result-file", _filename, "--all-databases"])
+        subprocess.check_call(bucmd)
+        gzcmd = ["/usr/bin/gzip", _filename]
+        subprocess.check_call(gzcmd)
+        return "{}.gz".format(_filename)

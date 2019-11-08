@@ -18,7 +18,6 @@ import os
 import subprocess
 import sys
 import traceback
-from time import gmtime, strftime
 
 
 # Load modules from $CHARM_DIR/lib
@@ -47,6 +46,45 @@ import charmhelpers.core as ch_core
 charms_openstack.bus.discover()
 
 
+def mysqldump(args):
+    """Execute a mysqldump backup.
+
+    Execute mysqldump of the database(s).  The mysqldump action will take
+    in the databases action parameter. If the databases parameter is unset all
+    databases will be dumped, otherwise only the named databases will be
+    dumped. The action will use the basedir action parameter to dump the
+    database into the base directory.
+
+    A successful mysqldump backup will set the action results key,
+    mysqldump-file, with the full path to the dump file.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.mysqldump
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action param basedir: Base directory to dump the db(s)
+    :action param databases: Comma separated string of databases
+    :action return:
+    """
+    basedir = (ch_core.hookenv.action_get("basedir"))
+    databases = (ch_core.hookenv.action_get("databases"))
+
+    try:
+        with charm.provide_charm_instance() as instance:
+            filename = instance.mysqldump(basedir, databases=databases)
+        ch_core.hookenv.action_set({
+            "mysqldump-file": filename,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.output,
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("mysqldump failed")
+
+
 def cluster_status(args):
     """Display cluster status
 
@@ -64,7 +102,6 @@ def cluster_status(args):
             ch_core.hookenv.action_set({"cluster-status": _status})
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.action_set({
-                "time-completed": (strftime("%Y-%m-%d %H:%M:%S", gmtime())),
                 "output": e.output,
                 "return-code": e.returncode,
                 "traceback": traceback.format_exc()})
@@ -73,7 +110,7 @@ def cluster_status(args):
 
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"cluster-status": cluster_status}
+ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status}
 
 
 def main(args):

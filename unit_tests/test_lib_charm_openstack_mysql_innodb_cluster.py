@@ -1040,3 +1040,55 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             [midbc.mysqlsh_bin, "--no-wizard", "-f", self.filename],
             stderr=self.stdin)
         self.file.write.assert_called_once_with(_script)
+
+    def test_mysqldump(self):
+        self.patch_object(mysql_innodb_cluster.datetime, "datetime")
+        _now = mock.MagicMock()
+        self.datetime.now.return_value = _now
+        _time = "_now_"
+        _now.strftime.return_value = _time
+        _path = "/tmp/backup"
+        _pass = "pass"
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+
+        # All DBrs
+        _filename = "{}/mysqldump-all-databases-{}".format(_path, _time)
+        _calls = [
+            mock.call(
+                ["/usr/bin/mysqldump", "-u", "root", "-ppass", "--triggers",
+                 "--routines", "--events", "--ignore-table=mysql.event",
+                 "--result-file", _filename, "--all-databases"]),
+            mock.call(["/usr/bin/gzip", _filename])]
+
+        self.assertEqual(midbc.mysqldump(_path), "{}.gz".format(_filename))
+        self.subprocess.check_call.assert_has_calls(_calls)
+
+        # One DB
+        self.subprocess.check_call.reset_mock()
+        _dbs = "mydb"
+        _filename = "{}/mysqldump-{}-{}".format(_path, _dbs, _time)
+        _calls = [
+            mock.call(
+                ["/usr/bin/mysqldump", "-u", "root", "-ppass", "--triggers",
+                 "--routines", "--events", "--ignore-table=mysql.event",
+                 "--result-file", _filename, "--databases", _dbs]),
+            mock.call(["/usr/bin/gzip", _filename])]
+        self.assertEqual(midbc.mysqldump(_path, databases=_dbs),
+                         "{}.gz".format(_filename))
+
+        # Multiple DBs
+        self.subprocess.check_call.reset_mock()
+        _dbs = "mydb,anotherdb"
+        _filename = "{}/mysqldump-{}-{}".format(
+            _path, "-".join(_dbs.split(",")), _time)
+        _calls = [
+            mock.call(
+                ["/usr/bin/mysqldump", "-u", "root", "-ppass", "--triggers",
+                 "--routines", "--events", "--ignore-table=mysql.event",
+                 "--result-file", _filename, "--databases"].extend(
+                     _dbs.split(","))),
+            mock.call(["/usr/bin/gzip", _filename])]
+        self.assertEqual(midbc.mysqldump(_path, databases=_dbs),
+                         "{}.gz".format(_filename))
