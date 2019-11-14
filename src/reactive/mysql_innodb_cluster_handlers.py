@@ -213,6 +213,9 @@ def config_changed():
         with charm.provide_charm_instance() as instance:
             instance.render_all_configs()
             instance.wait_until_cluster_available()
+            if reactive.is_flag_set('config.changed.auto-rejoin-tries'):
+                instance.set_cluster_option(
+                    "autoRejoinTries", instance.options.auto_rejoin_tries)
     else:
         with charm.provide_charm_instance() as instance:
             try:

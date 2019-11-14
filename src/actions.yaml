@@ -17,3 +17,26 @@ cluster-status:
   description: |
     JSON dump of the cluster schema and status. This action can be used to
     determine the RW and RO instances.
+reboot-cluster-from-complete-outage:
+  description: |
+     In the case of a complete outage, reboot the cluster from this instance's
+     GTID superset.
+rejoin-instance:
+  params:
+    address:
+      type: string
+      description: Address of the instance to rejoin to the cluster
+  description: |
+     Rejoin an instance to the cluster. *Note* This action must be run on an
+     instance that is a functioning member of the cluster. For example, after a
+     complete outage the unit which ran reboot-cluster-from-complete-outage.
+set-cluster-option:
+  params:
+    key:
+      type: string
+      description: Option name
+    value:
+      type: string
+      description: Option value
+  description: |
+     Set an option on the cluster.

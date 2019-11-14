@@ -463,6 +463,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _pass = "clusterpass"
         _addr = "10.10.40.40"
         _name = "jujuCluster"
+        _tries = 500
         self.get_relation_ip.return_value = _addr
         self.data = {"cluster-password": _pass}
         self.is_flag_set.side_effect = [False, True]
@@ -473,12 +474,13 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.wait_until_connectable = mock.MagicMock()
         midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.options.cluster_name = _name
+        midbc.options.auto_rejoin_tries = _tries
         _script = """
         shell.connect("{}:{}@{}")
-        var cluster = dba.createCluster("{}");
+        var cluster = dba.createCluster("{}", {{"autoRejoinTries": "{}"}});
         """.format(
             midbc.cluster_user, midbc.cluster_password,
-            midbc.cluster_address, midbc.cluster_name)
+            midbc.cluster_address, midbc.cluster_name, _tries)
 
         midbc.create_cluster()
         _is_flag_set_calls = [
@@ -1092,3 +1094,73 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(["/usr/bin/gzip", _filename])]
         self.assertEqual(midbc.mysqldump(_path, databases=_dbs),
                          "{}.gz".format(_filename))
+
+    def test_set_cluster_option(self):
+        _name = "theCluster"
+        _string = "status output"
+        _key = "option_name"
+        _value = "option_value"
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+
+        _script = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+        cluster.setOption("{}", {})
+        """.format(
+            midbc.cluster_user, midbc.cluster_password, midbc.cluster_address,
+            midbc.options.cluster_name, _key, _value)
+        self.assertEqual(_string, midbc.set_cluster_option(_key, _value))
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+    def test_reboot_cluster_from_complete_outage(self):
+        _pass = "clusterpass"
+        _name = "theCluster"
+        _string = "status output"
+        _local_addr = "10.10.50.50"
+        self.get_relation_ip.return_value = _local_addr
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+
+        _script = """
+        shell.connect("{}:{}@{}")
+        dba.rebootClusterFromCompleteOutage();
+        """.format(
+            midbc.cluster_user, midbc.cluster_password, midbc.cluster_address,
+            midbc.options.cluster_name)
+        self.assertEqual(_string, midbc.reboot_cluster_from_complete_outage())
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+    def test_rejoin_instance(self):
+        _pass = "clusterpass"
+        _name = "theCluster"
+        _string = "status output"
+        _local_addr = "10.10.50.50"
+        _remote_addr = "10.10.50.70"
+        self.get_relation_ip.return_value = _local_addr
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+
+        _script = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+        cluster.rejoinInstance("{}:{}@{}")
+        """.format(
+            midbc.cluster_user, midbc.cluster_password, midbc.cluster_address,
+            midbc.options.cluster_name,
+            midbc.cluster_user, midbc.cluster_password, _remote_addr)
+        self.assertEqual(_string, midbc.rejoin_instance(_remote_addr))
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)

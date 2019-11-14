@@ -209,6 +209,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         return "clusteruser"
 
     @property
+    def cluster_relation_endpoint(self):
+        """Determine the cluster username.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Cluster username
+        :rtype: str
+        """
+        return reactive.get_endpoint_from_flag("cluster.available")
+
+    @property
     def shared_db_address(self):
         """Determine this unit's Shared-DB address.
 
@@ -460,11 +471,10 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         _script = """
         shell.connect("{}:{}@{}")
-        var cluster = dba.createCluster("{}");
+        var cluster = dba.createCluster("{}", {{"autoRejoinTries": "{}"}});
         """.format(
             self.cluster_user, self.cluster_password, self.cluster_address,
-            self.options.cluster_name, self.cluster_user, self.cluster_address,
-            self.cluster_password)
+            self.options.cluster_name, self.options.auto_rejoin_tries)
         ch_core.hookenv.log("Creating cluster: {}."
                             .format(self.options.cluster_name), "INFO")
         try:
@@ -480,6 +490,37 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({"cluster-instance-clustered-{}"
                                .format(self.cluster_address): True})
         leadership.leader_set({"cluster-created": str(uuid.uuid4())})
+
+    def set_cluster_option(self, key, value):
+        """Set an option on the cluster
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param key: Option name
+        :type key: str
+        :param value: Option value
+        :type value: str
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        _script = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+        cluster.setOption("{}", {})
+        """.format(
+            self.cluster_user, self.cluster_password, self.cluster_address,
+            self.options.cluster_name, key, value)
+        try:
+            output = self.run_mysqlsh_script(_script).decode("UTF-8")
+            return output
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed setting cluster option {}={}: {}"
+                .format(key, value, e.output.decode("UTF-8")),
+                "ERROR")
+            # Reraise for action handling
+            raise e
 
     def add_instance_to_cluster(self, address):
         """Add MySQL instance to the cluster.
@@ -525,6 +566,75 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                             level="DEBUG")
         leadership.leader_set({"cluster-instance-clustered-{}"
                                .format(address): True})
+
+    def reboot_cluster_from_complete_outage(self):
+        """Reboot cluster from complete outage.
+
+        Execute the dba.rebootClusterFromCompleteOutage() after an outage.
+        This will rebootstrap the cluster and join this instance to the
+        previously existing cluster.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        _script = """
+        shell.connect("{}:{}@{}")
+        dba.rebootClusterFromCompleteOutage();
+        """.format(
+            self.cluster_user, self.cluster_password, self.cluster_address)
+        try:
+            output = self.run_mysqlsh_script(_script).decode("UTF-8")
+            ch_core.hookenv.log(
+                "Reboot cluster from complete outage successful: "
+                "{}".format(output),
+                level="DEBUG")
+            return output
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed rebooting from complete outage: {}"
+                .format(e.output.decode("UTF-8")),
+                "ERROR")
+            # Reraise for action handling
+            raise e
+
+    def rejoin_instance(self, address):
+        """Rejoin Instance to the cluster
+
+        Execute the cluster.rejoinInstanc(address) to rejoin the specified
+        instance to the cluster.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        ch_core.hookenv.log("XXX: REjoin {}".format(address))
+        _script = """
+        shell.connect("{}:{}@{}")
+        var cluster = dba.getCluster("{}");
+        cluster.rejoinInstance("{}:{}@{}")
+        """.format(
+            self.cluster_user, self.cluster_password, self.cluster_address,
+            self.cluster_name,
+            self.cluster_user, self.cluster_password, address)
+        try:
+            output = self.run_mysqlsh_script(_script).decode("UTF-8")
+            ch_core.hookenv.log(
+                "Rejoin isntance {} successful: "
+                "{}".format(address, output),
+                level="DEBUG")
+            return output
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed rejoining instance {}: {}"
+                .format(address, e.output.decode("UTF-8")),
+                "ERROR")
+            # Reraise for action handling
+            raise e
 
     def get_cluster_status(self, nocache=False):
         """Get cluster status
@@ -1041,3 +1151,15 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         gzcmd = ["/usr/bin/gzip", _filename]
         subprocess.check_call(gzcmd)
         return "{}.gz".format(_filename)
+
+    def cluster_peer_addresses(self):
+        """Cluster peer addresses
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Cluster peer addresses
+        :rtype: list
+        """
+        ep = reactive.endpoint_from_flag("cluster.available")
+        return [unit.received["cluster-address"]
+                for unit in ep.all_joined_units]

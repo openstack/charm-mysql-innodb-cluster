@@ -7,6 +7,7 @@ configure:
 # Running the keystone tests after the MySQLInnoDBClusterTests
 # validates DB functionality after a change in the R/W primary.
 tests:
+- zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 dev_bundles:

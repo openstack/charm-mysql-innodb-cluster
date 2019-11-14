@@ -19,7 +19,6 @@ import subprocess
 import sys
 import traceback
 
-
 # Load modules from $CHARM_DIR/lib
 _path = os.path.dirname(os.path.realpath(__file__))
 _lib = os.path.abspath(os.path.join(_path, "../lib"))
@@ -34,15 +33,10 @@ def _add_path(path):
 _add_path(_lib)
 _add_path(_reactive)
 
-from charms.layer import basic
-basic.bootstrap_charm_deps()
-basic.init_config_states()
-
-import charms_openstack.bus
 import charms_openstack.charm as charm
-
+import charms.reactive as reactive
 import charmhelpers.core as ch_core
-
+import charms_openstack.bus
 charms_openstack.bus.discover()
 
 
@@ -95,6 +89,7 @@ def cluster_status(args):
     :side effect: Calls instance.get_cluster_status
     :returns: This function is called for its side effect
     :rtype: None
+    :action return: Dictionary with command output
     """
     with charm.provide_charm_instance() as instance:
         try:
@@ -108,9 +103,98 @@ def cluster_status(args):
             ch_core.hookenv.action_fail("Cluster status failed")
 
 
+def reboot_cluster_from_complete_outage(args):
+    """Reboot cluster from complete outage.
+
+    Execute dba.rebootClusterFromCompleteOutage() after the cluster has been
+    completely down in an outage. For example in a cold boot scenario. The
+    action will also run cluster.rejoinInstance() on its peers to restore the
+    cluster completely.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.reboot_cluster_from_complete_outage and
+                  instance.rejoin_instance on its peers.
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action return: Dictionary with command output
+    """
+    # Note: Due to issues/# reactive does not initiate Endpoints during an
+    # action execution.  This is here to work around that until the issue is
+    # resolved.
+    reactive.Endpoint._startup()
+    with charm.provide_charm_instance() as instance:
+        output = instance.reboot_cluster_from_complete_outage()
+        # Add all peers back to the cluster
+        for address in instance.cluster_peer_addresses():
+            output += instance.rejoin_instance(address)
+        instance.assess_status()
+    ch_core.hookenv.action_set({
+        "output": output,
+        "outcome": "Success"}
+    )
+
+
+def rejoin_instance(args):
+    """Rejoin a given instance to the cluster.
+
+    In the event an instance is removed from the cluster or fails to
+    automatically rejoin, an instance can be rejoined to the cluster by an
+    existing cluster member.
+
+    Note: This action must be run on an instance that is already a member of
+    the cluster. The action parameter, address, is the addresss of the instance
+    that is being joined to the cluster.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.mysqldump
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action param address: String address of the instance to be joined
+    :action return: Dictionary with command output
+    """
+    address = (ch_core.hookenv.action_get("address"))
+    with charm.provide_charm_instance() as instance:
+        output = instance.rejoin_instance(address)
+    ch_core.hookenv.action_set({
+        "output": output,
+        "outcome": "Success"}
+    )
+
+
+def set_cluster_option(args):
+    """Set cluster option.
+
+    Set an option on the InnoDB cluster. Action parameter key is the name of
+    the option and action parameter value is the value to be set.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.mysqldump
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action param key: String option name
+    :action param value: String option value
+    :action return: Dictionary with command output
+    """
+    key = (ch_core.hookenv.action_get("key"))
+    value = (ch_core.hookenv.action_get("value"))
+    with charm.provide_charm_instance() as instance:
+        output = instance.set_cluster_option(key, value)
+    ch_core.hookenv.action_set({
+        "output": output,
+        "outcome": "Success"}
+    )
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status}
+ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
+           "set-cluster-option": set_cluster_option,
+           "reboot-cluster-from-complete-outage":
+               reboot_cluster_from_complete_outage,
+           "rejoin-instance": rejoin_instance}
 
 
 def main(args):
@@ -123,7 +207,12 @@ def main(args):
         try:
             action(args)
         except Exception as e:
-            ch_core.hookenv.action_fail(str(e))
+            ch_core.hookenv.action_set({
+                "output": e.output.decode("UTF-8"),
+                "return-code": e.returncode,
+                "traceback": traceback.format_exc()})
+            ch_core.hookenv.action_fail(
+                "{} action failed.".format(action_name))
 
 
 if __name__ == "__main__":

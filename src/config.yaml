@@ -38,3 +38,9 @@ options:
       Consult a MySQL memory calculator like http://www.mysqlcalculator.com/ to
       understand memory resources consumed by connections.
       See also performance-schema.
+  auto-rejoin-tries:
+    type: string
+    default: "1000"
+    description: |
+      The number of tries instances make to rejoin the cluster after being
+      expelled.
