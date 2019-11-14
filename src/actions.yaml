@@ -1,3 +1,18 @@
+mysqldump:
+  description: |
+    MySQL dump of databases. Action will return mysqldump-file location of the
+    requested backup in the results. If the databases parameter is unset all
+    databases will be dumped. If the databases parameter is set only the
+    databases specified will be dumped.
+  params:
+    basedir:
+      type: string
+      default: "/var/backups/mysql"
+      description: The base directory for backups
+    databases:
+      description: |
+        Comma delimited database names to dump. If left unset, all databases
+        will be dumped.
 cluster-status:
   description: |
     JSON dump of the cluster schema and status. This action can be used to
