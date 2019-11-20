@@ -16,10 +16,10 @@
 # * Basic Settings
 #
 user		= mysql
-# pid-file	= /var/run/mysqld/mysqld.pid
-# socket	= /var/run/mysqld/mysqld.sock
+pid-file	= /var/run/mysqld/mysqld.pid
+socket	= /var/run/mysqld/mysqld.sock
 # port		= 3306
-# datadir	= /var/lib/mysql
+datadir	= /var/lib/mysql
 
 
 # If MySQL is running as a replication slave, this should be
@@ -33,7 +33,7 @@ report_host = {{ options.cluster_address }}
 #
 # * Fine Tuning
 #
-key_buffer_size		= 16M
+key_buffer_size		= 32M
 # max_allowed_packet	= 64M
 # thread_stack		= 256K
 table_open_cache        = {{ options.table_open_cache }}
@@ -44,7 +44,7 @@ table_open_cache        = {{ options.table_open_cache }}
 myisam-recover-options  = BACKUP
 
 # max_connections        = 151
-{% if max_connections != -1 -%}
+{% if options.max_connections != -1 -%}
 max_connections = {{ options.max_connections }}
 {% endif %}
 
@@ -74,10 +74,13 @@ log_error = /var/log/mysql/error.log
 # The following can be used as easy to replay backup logs or for replication.
 # note: if you are setting up a replication slave, see README.Debian about
 #       other settings you may need to change.
-# server-id		= 1
-# log_bin			= /var/log/mysql/mysql-bin.log
+{% if options.enable_binlogs -%}
+log_bin={{ options.binlogs_path }}
+{% endif %}
+
+binlog_expire_logs_seconds   = {{ options.binlog_expire_logs_seconds_adapter }}
+max_binlog_size         = {{ options.binlogs_max_size }}
 # binlog_expire_logs_seconds	= 2592000
-max_binlog_size   = 100M
 # binlog_do_db		= include_database_name
 # binlog_ignore_db	= include_database_name
 #
@@ -96,3 +99,31 @@ gtid_mode = ON
 server_id = {{ options.server_id }}
 
 skip_name_resolve = ON
+
+#
+# * InnoDB
+#
+{% if options.innodb_file_per_table -%}
+# This enables storing InnoDB tables in separate .ibd files. Note that, however
+# existing InnoDB tables will remain in ibdata file(s) unles OPTIMIZE is run
+# on them. Still, the ibdata1 file will NOT shrink - a full dump/import of the
+# data is needed in order to get rid of large ibdata file.
+innodb_file_per_table = 1
+{% else -%}
+innodb_file_per_table = 0
+{% endif %}
+
+# safest = 1 (default)
+# fast   = 2
+# unsafe = 0
+innodb_flush_log_at_trx_commit = {{ options.innodb_flush_log_at_trx_commit_adapter }}
+
+innodb_buffer_pool_size = {{ options.innodb_buffer_pool_size_adapter }}
+
+{% if options.innodb_change_buffering -%}
+innodb_change_buffering = {{ options.innodb_change_buffering_adapter }}
+{% endif %}
+
+{% if options.innodb_io_capacity -%}
+innodb_io_capacity = {{ options.innodb_io_capacity }}
+{% endif %}

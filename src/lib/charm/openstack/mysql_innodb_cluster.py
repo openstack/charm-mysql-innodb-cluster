@@ -92,6 +92,66 @@ def db_router_address(cls):
     return ch_net_ip.get_relation_ip("db-router")
 
 
+@charms_openstack.adapters.config_property
+def innodb_flush_log_at_trx_commit_adapter(cls):
+    """Determine the value for innodb_flush_log_at_trx_commit.
+
+    Call the MySQLConfigHelper get_innodb_flush_log_at_trx_commit helper to get
+    the value for innodb_flush_log_at_trx_commit.
+
+    :param cls: Class
+    :type cls: ConfigurationAdapter class
+    :returns: Numeric innodb_flush_log_at_trx_commit value
+    :rtype: int
+    """
+    return mysql.get_mysql_config_helper().get_innodb_flush_log_at_trx_commit()
+
+
+@charms_openstack.adapters.config_property
+def innodb_change_buffering_adapter(cls):
+    """Determine the value for innodb_flush_log_at_trx_commit.
+
+    Call the MySQLConfigHelper get_innodb_change_buffering helper to get the
+    value for innodb_change_buffering.
+
+    :param cls: Class
+    :type cls: ConfigurationAdapter class
+    :returns: string innodb_change_buffering value
+    :rtype: str
+    """
+    return mysql.get_mysql_config_helper().get_innodb_change_buffering()
+
+
+@charms_openstack.adapters.config_property
+def innodb_buffer_pool_size_adapter(cls):
+    """Determine the value for innodb_flush_log_at_trx_commit.
+
+    Call the MySQLConfigHelper innodb_buffer_pool_size helper to get the value
+    for innodb_buffer_pool_size_adapter.
+
+    :param cls: Class
+    :type cls: ConfigurationAdapter class
+    :returns: Numeric innodb_buffer_pool_size value
+    :rtype: int
+    """
+    return mysql.get_mysql_config_helper().get_innodb_buffer_pool_size()
+
+
+@charms_openstack.adapters.config_property
+def binlog_expire_logs_seconds_adapter(cls):
+    """Determine the value for binlog_expire_logs_seconds.
+
+    From the binlogs-expire-days config option calculate the number of seconds.
+
+    :param cls: Class
+    :type cls: ConfigurationAdapter class
+    :returns: Numeric binlog_expire_logs_seconds value
+    :rtype: int
+    """
+    days = int(ch_core.hookenv.config("binlogs-expire-days"))
+    return 60 * 60 * 24 * days
+
+
 class CannotConnectToMySQL(Exception):
     """Exception when attempting to connect to a MySQL server.
     """

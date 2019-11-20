@@ -18,6 +18,76 @@ options:
     type: string
     description: Cluster name for the InnoDB cluster. Must be unique.
     default: jujuCluster
+  auto-rejoin-tries:
+    type: string
+    default: "1000"
+    description: |
+      The number of tries instances make to rejoin the cluster after being
+      expelled.
+  innodb-buffer-pool-size:
+    type: string
+    default:
+    description: |
+      By default this value will be set according to 50% of system total
+      memory or 512MB (whichever is lowest) but also can be set to any specific
+      value for the system. Supported suffixes include K/M/G/T. If suffixed
+      with %, one will get that percentage of system total memory allocated.
+  innodb-change-buffering:
+    type: string
+    default: "all"
+    description: |
+      Configure whether InnoDB performs change buffering, an optimization
+      that delays write operations to secondary indexes so that the I/O
+      operations can be performed sequentially.
+      .
+      Permitted values include
+      .
+        none        Do not buffer any operations.
+        inserts     Buffer insert operations.
+        deletes     Buffer delete marking operations; strictly speaking,
+                    the writes that mark index records for later deletion
+                    during a purge operation.
+        changes     Buffer inserts and delete-marking operations.
+        purges      Buffer the physical deletion operations that happen
+                    in the background.
+        all         The default. Buffer inserts, delete-marking
+                    operations, and purges.
+      .
+      For more details https://dev.mysql.com/doc/refman/8.0/en/innodb-parameters.html#sysvar_innodb_change_bufferring
+  innodb-io-capacity:
+    type: int
+    default: 200
+    description: |
+      Configure the InnoDB IO capacity which sets an upper limit on I/O
+      activity performed by InnoDB background tasks, such as flushing pages
+      from the buffer pool and merging data from the change buffer.
+      .
+      This value typically defaults to 200 but can be increased on systems
+      with fast bus-attached SSD based storage to help the server handle the
+      background maintenance work associated with a high rate of row changes.
+      .
+      Alternatively it can be decreased to a minimum of 100 on systems with
+      low speed 5400 or 7200 rpm spindles, to reduce the proportion of IO
+      operations being used for background maintenance work.
+      .
+      For more details https://dev.mysql.com/doc/refman/8.0/en/innodb-parameters.html#sysvar_innodb_io_capacity
+  innodb-file-per-table:
+    type: boolean
+    default: True
+    description: |
+      Turns on innodb_file_per_table option, which will make MySQL put each
+      InnoDB table into separate .idb file. Existing InnoDB tables will remain
+      in ibdata1 file - full dump/import is needed to get rid of large
+      ibdata1 file
+  tuning-level:
+    type: string
+    default: safest
+    description: |
+      Valid values are 'safest', 'fast', and 'unsafe'. If set to 'safest', all
+      settings are tuned to have maximum safety at the cost of performance.
+      'fast' will turn off most controls, but may lose data on crashes.
+      'unsafe' will turn off all protections but this may be OK in clustered
+      deployments.
   table-open-cache:
     type: int
     default: 2048
@@ -38,9 +108,44 @@ options:
       Consult a MySQL memory calculator like http://www.mysqlcalculator.com/ to
       understand memory resources consumed by connections.
       See also performance-schema.
-  auto-rejoin-tries:
-    type: string
-    default: "1000"
+  enable-binlogs:
+    type: boolean
+    default: False
     description: |
-      The number of tries instances make to rejoin the cluster after being
-      expelled.
+      Turns on MySQL binary logs. The placement of the logs is controlled with
+      the binlogs_path config option.
+  binlogs-path:
+    type: string
+    default: /var/log/mysql/mysql-bin.log
+    description: |
+      Location on the filesystem where binlogs are going to be placed.
+      Default mimics what mysql-common package would do for mysql.
+      Make sure you do not put binlogs inside mysql datadir (/var/lib/mysql/)!
+  binlogs-max-size:
+    type: string
+    default: 100M
+    description: |
+      Sets the max_binlog_size mysql configuration option, which will limit the
+      size of the binary log files. The server will automatically rotate
+      binlogs after they grow to be bigger than this value.
+      Keep in mind that transactions are never split between binary logs, so
+      therefore binary logs might get larger than configured value.
+  binlogs-expire-days:
+    type: int
+    default: 10
+    description: |
+      Sets the expire_logs_days mysql configuration option, which will make
+      mysql server automatically remove logs older than configured number of
+      days.
+  prefer-ipv6:
+    type: boolean
+    default: False
+    description: |
+      If True enables IPv6 support. The charm will expect network interfaces
+      to be configured with an IPv6 address. If set to False (default) IPv4
+      is expected.
+      .
+      NOTE: these charms do not currently support IPv6 privacy extension. In
+      order for this charm to function correctly, the privacy extension must be
+      disabled and a non-temporary address must be configured/available on
+      your network interface.
