@@ -1171,6 +1171,19 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             return subprocess.check_output(
                 cmd, stderr=subprocess.STDOUT)
 
+    def write_root_my_cnf(self):
+        """Write root my.cnf
+
+        :side effect: calls render()
+        :returns: None
+        :rtype: None
+        """
+        my_cnf_template = "root-my.cnf"
+        root_my_cnf = "/root/.my.cnf"
+        context = {"mysql_passwd": self.mysql_password}
+        ch_core.templating.render(
+            my_cnf_template, root_my_cnf, context, perms=0o600)
+
     def mysqldump(self, backup_dir, databases=None):
         """Execute a MySQL dump
 
@@ -1183,6 +1196,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: Path to the mysqldump file
         :rtype: str
         """
+        # In order to enable passwordless use of mysqldump
+        # write out my.cnf for user root
+        self.write_root_my_cnf()
+        # Enable use of my.cnf by setting HOME env variable
+        os.environ["HOME"] = "/root"
         _user = "root"
         _delimiter = ","
         if not os.path.exists(backup_dir):
@@ -1190,7 +1208,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 backup_dir, owner="mysql", group="mysql", perms=0o750)
 
         bucmd = ["/usr/bin/mysqldump", "-u", _user,
-                 "-p{}".format(self.mysql_password),
                  "--triggers", "--routines", "--events",
                  "--ignore-table=mysql.event"]
         if databases is not None:
@@ -1211,6 +1228,33 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         gzcmd = ["/usr/bin/gzip", _filename]
         subprocess.check_call(gzcmd)
         return "{}.gz".format(_filename)
+
+    def restore_mysqldump(self, dump_file):
+        """Restore a MySQL dump file
+
+        :param dump_file: Path to mysqldump file to restored.
+        :type dump_file: str
+        :side effect: Calls subprocess.check_call
+        :raises subprocess.CalledProcessError: If the mysqldump fails
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        # In order to enable passwordless use of mysql
+        # write out my.cnf for user root
+        self.write_root_my_cnf()
+        # Enable use of my.cnf by setting HOME env variable
+        os.environ["HOME"] = "/root"
+        # Gunzip if necessary
+        if ".gz" in dump_file:
+            gunzip = ["gunzip", dump_file]
+            subprocess.check_call(gunzip)
+            dump_file = dump_file[:-3]
+        _user = "root"
+        restore_cmd = ["mysql", "-u", _user]
+        restore = subprocess.Popen(restore_cmd, stdin=subprocess.PIPE)
+        with open(dump_file, "rb") as _sql:
+            restore.communicate(input=_sql.read())
+        restore.wait()
 
     def cluster_peer_addresses(self):
         """Cluster peer addresses

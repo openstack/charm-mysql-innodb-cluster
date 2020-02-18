@@ -13,6 +13,14 @@ mysqldump:
       description: |
         Comma delimited database names to dump. If left unset, all databases
         will be dumped.
+restore-mysqldump:
+  description: |
+    Restore a MySQL dump of database(s).
+    WARNING This is a desctructive action. It may overwrite existing database(s) data.
+  params:
+    dump-file:
+      type: string
+      description: Path to the mysqldump file.
 cluster-status:
   description: |
     JSON dump of the cluster schema and status. This action can be used to

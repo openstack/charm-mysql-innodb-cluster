@@ -1050,21 +1050,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _time = "_now_"
         _now.strftime.return_value = _time
         _path = "/tmp/backup"
-        _pass = "pass"
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
-        midbc._get_password = mock.MagicMock()
-        midbc._get_password.return_value = _pass
+        midbc.write_root_my_cnf = mock.MagicMock()
 
-        # All DBrs
+        # All DBs
         _filename = "{}/mysqldump-all-databases-{}".format(_path, _time)
         _calls = [
             mock.call(
-                ["/usr/bin/mysqldump", "-u", "root", "-ppass", "--triggers",
+                ["/usr/bin/mysqldump", "-u", "root", "--triggers",
                  "--routines", "--events", "--ignore-table=mysql.event",
                  "--result-file", _filename, "--all-databases"]),
             mock.call(["/usr/bin/gzip", _filename])]
 
         self.assertEqual(midbc.mysqldump(_path), "{}.gz".format(_filename))
+        midbc.write_root_my_cnf.assert_called_once()
         self.subprocess.check_call.assert_has_calls(_calls)
 
         # One DB
@@ -1094,6 +1093,29 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(["/usr/bin/gzip", _filename])]
         self.assertEqual(midbc.mysqldump(_path, databases=_dbs),
                          "{}.gz".format(_filename))
+
+    def test_restore_mysqldump(self):
+        self.patch("builtins.open",
+                   new_callable=mock.mock_open(),
+                   name="_open")
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.write_root_my_cnf = mock.MagicMock()
+
+        _dump_file = "/home/ubuntu/dump.sql.gz"
+
+        _restore = mock.MagicMock(name="RESTORE")
+        _sql = mock.MagicMock()
+        self._open.return_value = _sql
+        self.subprocess.Popen.return_value = _restore
+
+        midbc.restore_mysqldump(_dump_file)
+        midbc.write_root_my_cnf.assert_called_once()
+        self.subprocess.check_call.assert_called_once_with(
+            ["gunzip", _dump_file])
+        self.subprocess.Popen.assert_called_once_with(
+            ["mysql", "-u", "root"], stdin=self.subprocess.PIPE)
+        _restore.communicate.assert_called_once_with(
+            input=_sql.__enter__().read())
 
     def test_set_cluster_option(self):
         _name = "theCluster"

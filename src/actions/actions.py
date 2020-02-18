@@ -59,11 +59,10 @@ def mysqldump(args):
     :rtype: None
     :action param basedir: Base directory to dump the db(s)
     :action param databases: Comma separated string of databases
-    :action return:
+    :action return: mysqldump-file
     """
-    basedir = (ch_core.hookenv.action_get("basedir"))
-    databases = (ch_core.hookenv.action_get("databases"))
-
+    basedir = ch_core.hookenv.action_get("basedir")
+    databases = ch_core.hookenv.action_get("databases")
     try:
         with charm.provide_charm_instance() as instance:
             filename = instance.mysqldump(basedir, databases=databases)
@@ -77,6 +76,43 @@ def mysqldump(args):
             "return-code": e.returncode,
             "traceback": traceback.format_exc()})
         ch_core.hookenv.action_fail("mysqldump failed")
+
+
+def restore_mysqldump(args):
+    """Restore a mysqldump backup.
+
+    Execute mysqldump of the database(s).  The mysqldump action will take
+    in the databases action parameter. If the databases parameter is unset all
+    databases will be dumped, otherwise only the named databases will be
+    dumped. The action will use the basedir action parameter to dump the
+    database into the base directory.
+
+    A successful mysqldump backup will set the action results key,
+    mysqldump-file, with the full path to the dump file.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.restore_mysqldump
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action param dump-file: Path to mysqldump file to restore.
+    :action return:
+    """
+    dump_file = ch_core.hookenv.action_get("dump-file")
+    try:
+        with charm.provide_charm_instance() as instance:
+            instance.restore_mysqldump(dump_file)
+        ch_core.hookenv.action_set({
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.output,
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail(
+            "Restore mysqldump of {} failed"
+            .format(dump_file))
 
 
 def cluster_status(args):
@@ -154,7 +190,7 @@ def rejoin_instance(args):
     :action param address: String address of the instance to be joined
     :action return: Dictionary with command output
     """
-    address = (ch_core.hookenv.action_get("address"))
+    address = ch_core.hookenv.action_get("address")
     with charm.provide_charm_instance() as instance:
         output = instance.rejoin_instance(address)
     ch_core.hookenv.action_set({
@@ -178,8 +214,8 @@ def set_cluster_option(args):
     :action param value: String option value
     :action return: Dictionary with command output
     """
-    key = (ch_core.hookenv.action_get("key"))
-    value = (ch_core.hookenv.action_get("value"))
+    key = ch_core.hookenv.action_get("key")
+    value = ch_core.hookenv.action_get("value")
     with charm.provide_charm_instance() as instance:
         output = instance.set_cluster_option(key, value)
     ch_core.hookenv.action_set({
@@ -191,6 +227,7 @@ def set_cluster_option(args):
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
 ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
+           "restore-mysqldump": restore_mysqldump,
            "set-cluster-option": set_cluster_option,
            "reboot-cluster-from-complete-outage":
                reboot_cluster_from_complete_outage,
