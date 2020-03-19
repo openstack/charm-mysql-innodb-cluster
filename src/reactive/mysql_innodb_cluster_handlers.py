@@ -220,7 +220,7 @@ def config_changed():
         with charm.provide_charm_instance() as instance:
             try:
                 instance.wait_until_cluster_available()
-            except:
+            except Exception:
                 ch_core.hookenv.log(
                     "Cluster was not availble as expected.", "WARNING")
         ch_core.hookenv.log("Non-leader requst to restart.", "DEBUG")

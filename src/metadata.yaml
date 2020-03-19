@@ -17,3 +17,9 @@ provides:
 peers:
   cluster:
     interface: mysql-innodb-cluster
+resources:
+  mysql-shell:
+    type: file
+    filename: 'mysql-shell.snap'
+    description: |
+      Snap for mysql-shell

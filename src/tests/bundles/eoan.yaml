@@ -6,7 +6,6 @@ applications:
     series: eoan
     charm: ../../../mysql-innodb-cluster
     num_units: 3
-    options:
   keystone:
     charm: cs:~openstack-charmers-next/keystone
     num_units: 1

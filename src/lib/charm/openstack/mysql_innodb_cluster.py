@@ -193,9 +193,13 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: Path to binary mysqlsh
         :rtype: str
         """
-        # The current upstream snap uses mysql-shell
+        # Allow for various versions of the msyql-shell snap
         # When we get the alias use /snap/bin/mysqlsh
-        # return "/snap/bin/mysqlsh"
+        if os.path.exists("/snap/bin/mysqlsh"):
+            return "/snap/bin/mysqlsh"
+        if os.path.exists("/snap/bin/mysql-shell.mysqlsh"):
+            return "/snap/bin/mysql-shell.mysqlsh"
+        # Default to the full path version
         return "/snap/mysql-shell/current/usr/bin/mysqlsh"
 
     @property
@@ -478,13 +482,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         ch_core.hookenv.log("Configuring instance for clustering: {}."
                             .format(address), "INFO")
-        _script = """
-        dba.configureInstance('{}:{}@{}');
-        var myshell = shell.connect('{}:{}@{}');
-        myshell.runSql("RESTART;");
-        """.format(
-            self.cluster_user, self.cluster_password, address,
-            self.cluster_user, self.cluster_password, address)
+        _script = (
+            "dba.configure_instance('{user}:{pw}@{addr}')\n"
+            "myshell = shell.connect('{user}:{pw}@{addr}')\n"
+            "myshell.run_sql('RESTART;')"
+            .format(
+                user=self.cluster_user,
+                pw=self.cluster_password,
+                addr=address))
         try:
             output = self.run_mysqlsh_script(_script)
         except subprocess.CalledProcessError as e:
@@ -529,12 +534,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                                 "WARNING")
             return
 
-        _script = """
-        shell.connect("{}:{}@{}")
-        var cluster = dba.createCluster("{}", {{"autoRejoinTries": "{}"}});
-        """.format(
-            self.cluster_user, self.cluster_password, self.cluster_address,
-            self.options.cluster_name, self.options.auto_rejoin_tries)
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}'}})"
+            .format(
+                self.cluster_user, self.cluster_password, self.cluster_address,
+                self.options.cluster_name, self.options.auto_rejoin_tries))
         ch_core.hookenv.log("Creating cluster: {}."
                             .format(self.options.cluster_name), "INFO")
         try:
@@ -564,13 +569,13 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
-        _script = """
-        shell.connect("{}:{}@{}")
-        var cluster = dba.getCluster("{}");
-        cluster.setOption("{}", {})
-        """.format(
-            self.cluster_user, self.cluster_password, self.cluster_address,
-            self.options.cluster_name, key, value)
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.get_cluster('{}')\n"
+            "cluster.set_option('{}', {})"
+            .format(
+                self.cluster_user, self.cluster_password, self.cluster_address,
+                self.options.cluster_name, key, value))
         try:
             output = self.run_mysqlsh_script(_script).decode("UTF-8")
             return output
@@ -602,18 +607,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         ch_core.hookenv.log("Adding instance, {}, to the cluster."
                             .format(address), "INFO")
-        _script = """
-        shell.connect("{}:{}@{}")
-        var cluster = dba.getCluster("{}");
-
-        print("Adding instances to the cluster.");
-        cluster.addInstance(
-            {{user: "{}", host: "{}", password: "{}", port: "3306"}},
-            {{recoveryMethod: "clone"}});
-        """.format(
-            self.cluster_user, self.cluster_password, self.cluster_address,
-            self.options.cluster_name,
-            self.cluster_user, address, self.cluster_password)
+        _script = (
+            "shell.connect('{user}:{pw}@{caddr}')\n"
+            "cluster = dba.get_cluster('{name}')\n"
+            "cluster.add_instance("
+            "{{'user': '{user}', 'host': '{addr}', 'password': '{pw}', "
+            "'port': '3306'}},"
+            "{{'recoveryMethod': 'clone'}})"
+            .format(
+                user=self.cluster_user, pw=self.cluster_password,
+                caddr=self.cluster_address,
+                name=self.options.cluster_name, addr=address))
         try:
             output = self.run_mysqlsh_script(_script)
         except subprocess.CalledProcessError as e:
@@ -630,7 +634,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def reboot_cluster_from_complete_outage(self):
         """Reboot cluster from complete outage.
 
-        Execute the dba.rebootClusterFromCompleteOutage() after an outage.
+        Execute the dba.reboot_cluster_from_complete_outage() after an outage.
         This will rebootstrap the cluster and join this instance to the
         previously existing cluster.
 
@@ -640,11 +644,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
-        _script = """
-        shell.connect("{}:{}@{}")
-        dba.rebootClusterFromCompleteOutage();
-        """.format(
-            self.cluster_user, self.cluster_password, self.cluster_address)
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "dba.reboot_cluster_from_complete_outage()"
+            .format(
+                self.cluster_user, self.cluster_password,
+                self.cluster_address))
         try:
             output = self.run_mysqlsh_script(_script).decode("UTF-8")
             ch_core.hookenv.log(
@@ -663,7 +668,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def rejoin_instance(self, address):
         """Rejoin Instance to the cluster
 
-        Execute the cluster.rejoinInstanc(address) to rejoin the specified
+        Execute the cluster.rejoin_instance(address) to rejoin the specified
         instance to the cluster.
 
         :param self: Self
@@ -673,14 +678,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: None
         """
         ch_core.hookenv.log("XXX: REjoin {}".format(address))
-        _script = """
-        shell.connect("{}:{}@{}")
-        var cluster = dba.getCluster("{}");
-        cluster.rejoinInstance("{}:{}@{}")
-        """.format(
-            self.cluster_user, self.cluster_password, self.cluster_address,
-            self.cluster_name,
-            self.cluster_user, self.cluster_password, address)
+        _script = (
+            "shell.connect('{user}:{pw}@{caddr}')\n"
+            "cluster = dba.get_cluster('{name}')\n"
+            "cluster.rejoin_instance('{user}:{pw}@{addr}')"
+            .format(
+                user=self.cluster_user, pw=self.cluster_password,
+                caddr=self.cluster_address,
+                name=self.cluster_name, addr=address))
         try:
             output = self.run_mysqlsh_script(_script).decode("UTF-8")
             ch_core.hookenv.log(
@@ -725,15 +730,16 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 .format(e.output.decode("UTF-8")), "ERROR")
             return
 
-        _script = """
-        shell.connect("{}:{}@{}")
-        var cluster = dba.getCluster("{}");
-
-        print(cluster.status())
-        """.format(self.cluster_user, self.cluster_password,
-                   self.cluster_address, self.cluster_name)
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.get_cluster('{}')\n"
+            "print(cluster.status())"
+            .format(self.cluster_user, self.cluster_password,
+                    self.cluster_address, self.cluster_name))
         try:
-            output = self.run_mysqlsh_script(_script)
+            # Do not output stderr to avoid json.loads errors
+            # on warnings.
+            output = self.run_mysqlsh_script(_script, stderr=None)
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed checking cluster status: {}"
@@ -1143,19 +1149,21 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
-        _script = """
-        shell.connect("{}:{}@{}")
-        var cluster = dba.getCluster("{}");
-        """.format(
-            self.cluster_user, self.cluster_password, self.cluster_address,
-            self.cluster_name)
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.get_cluster('{}')"
+            .format(
+                self.cluster_user, self.cluster_password, self.cluster_address,
+                self.cluster_name))
         self.run_mysqlsh_script(_script)
 
-    def run_mysqlsh_script(self, script):
+    def run_mysqlsh_script(self, script, stderr=subprocess.STDOUT):
         """Execute a MySQL shell script
 
         :param script: Mysqlsh script
         :type script: str
+        :param stderr: stderr to stdout or None
+        :type stderr: Union[subprocess.STDOUT, None]
         :side effect: Calls subprocess.check_output
         :raises subprocess.CalledProcessError: Raises CalledProcessError if the
                                                script gets a non-zero return
@@ -1163,13 +1171,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: subprocess output
         :rtype: UTF-8 byte string
         """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as _file:
+        # Use the /root dir because of the confined mysql-shell snap
+        with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", dir="/root") as _file:
             _file.write(script)
             _file.flush()
 
-            cmd = ([self.mysqlsh_bin, "--no-wizard", "-f", _file.name])
+            # Specify python as this is not the default in the deb version
+            # of the mysql-shell snap
+            cmd = [
+                self.mysqlsh_bin, "--no-wizard", "--python", "-f", _file.name]
             return subprocess.check_output(
-                cmd, stderr=subprocess.STDOUT)
+                cmd, stderr=stderr)
 
     def write_root_my_cnf(self):
         """Write root my.cnf
