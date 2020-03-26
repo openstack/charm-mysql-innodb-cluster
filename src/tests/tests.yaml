@@ -1,9 +1,17 @@
 charm_name: mysql-innodb-cluster
 configure:
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-- full_model:
-    - zaza.openstack.charm_tests.keystone.setup.add_demo_user
+- eoan_full_model:
     - zaza.openstack.charm_tests.glance.setup.add_lts_image
+    - zaza.openstack.charm_tests.nova.setup.create_flavors
+    - zaza.openstack.charm_tests.keystone.setup.add_demo_user
+- focal_full_model:
+    - zaza.openstack.charm_tests.vault.setup.auto_initialize
+    - zaza.openstack.charm_tests.glance.setup.add_lts_image
+    - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
+    - zaza.openstack.charm_tests.nova.setup.create_flavors
+    - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
+    - zaza.openstack.charm_tests.keystone.setup.add_demo_user
 # The pause and resume test validates changing the R/W primary.
 # Running the keystone tests after the MySQLInnoDBClusterTests
 # validates DB functionality after a change in the R/W primary.
@@ -13,13 +21,34 @@ tests:
 #- zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
-- full_model:
+- eoan_full_model:
+    #- zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
+    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
+    - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
+- focal_full_model:
     #- zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 dev_bundles:
 gate_bundles:
-- eoan
-- full_model: eoan-full-ha
+- focal_full_model: focal-full-ha
+- eoan_full_model: eoan-full-ha
 smoke_bundles:
-- eoan
+- focal
+tests_options:
+  force_deploy:
+   - focal
+   - focal-full-ha
+target_deploy_status:
+  neutron-api-plugin-ovn:
+    workload-status: waiting
+    workload-status-message: "'ovsdb-cms' incomplete"
+  ovn-central:
+    workload-status: blocked
+    workload-status-message: "'certificates' missing"
+  ovn-chassis:
+    workload-status: blocked
+    workload-status-message: "'certificates' missing"
+  vault:
+    workload-status: blocked
+    workload-status-message: Vault needs to be initialized
