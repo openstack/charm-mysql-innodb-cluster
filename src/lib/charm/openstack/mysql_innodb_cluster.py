@@ -506,7 +506,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed configuring instance {}: {}"
-                .format(address, e.output.decode("UTF-8")), "ERROR")
+                .format(address, e.stderr.decode("UTF-8")), "ERROR")
             return
 
         # After configuration of the remote instance, the remote instance
@@ -558,7 +558,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed creating cluster: {}"
-                .format(e.output.decode("UTF-8")), "ERROR")
+                .format(e.stderr.decode("UTF-8")), "ERROR")
             return
         ch_core.hookenv.log("Cluster Created: {}"
                             .format(output.decode("UTF-8")),
@@ -593,7 +593,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed setting cluster option {}={}: {}"
-                .format(key, value, e.output.decode("UTF-8")),
+                .format(key, value, e.stderr.decode("UTF-8")),
                 "ERROR")
             # Reraise for action handling
             raise e
@@ -634,7 +634,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed adding instance {} to cluster: {}"
-                .format(address, e.output.decode("UTF-8")), "ERROR")
+                .format(address, e.stderr.decode("UTF-8")), "ERROR")
             return
         ch_core.hookenv.log("Instance Clustered {}: {}"
                             .format(address, output.decode("UTF-8")),
@@ -671,7 +671,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed rebooting from complete outage: {}"
-                .format(e.output.decode("UTF-8")),
+                .format(e.stderr.decode("UTF-8")),
                 "ERROR")
             # Reraise for action handling
             raise e
@@ -707,7 +707,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed rejoining instance {}: {}"
-                .format(address, e.output.decode("UTF-8")),
+                .format(address, e.stderr.decode("UTF-8")),
                 "ERROR")
             # Reraise for action handling
             raise e
@@ -738,7 +738,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Cluster is unavailable: {}"
-                .format(e.output.decode("UTF-8")), "ERROR")
+                .format(e.stderr.decode("UTF-8")), "ERROR")
             return
 
         _script = (
@@ -748,13 +748,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             .format(self.cluster_user, self.cluster_password,
                     self.cluster_address, self.cluster_name))
         try:
-            # Do not output stderr to avoid json.loads errors
-            # on warnings.
-            output = self.run_mysqlsh_script(_script, stderr=None)
+            output = self.run_mysqlsh_script(_script)
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed checking cluster status: {}"
-                .format(e.output.decode("UTF-8")), "ERROR")
+                .format(e.stderr.decode("UTF-8")), "ERROR")
             return
         self._cached_cluster_status = json.loads(output.decode("UTF-8"))
         return self._cached_cluster_status
@@ -1168,13 +1166,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 self.cluster_name))
         self.run_mysqlsh_script(_script)
 
-    def run_mysqlsh_script(self, script, stderr=subprocess.STDOUT):
+    def run_mysqlsh_script(self, script):
         """Execute a MySQL shell script
 
         :param script: Mysqlsh script
         :type script: str
-        :param stderr: stderr to stdout or None
-        :type stderr: Union[subprocess.STDOUT, None]
         :side effect: Calls subprocess.check_output
         :raises subprocess.CalledProcessError: Raises CalledProcessError if the
                                                script gets a non-zero return
@@ -1201,8 +1197,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             # of the mysql-shell snap
             cmd = [
                 self.mysqlsh_bin, "--no-wizard", "--python", "-f", _file.name]
-            return subprocess.check_output(
-                cmd, stderr=stderr)
+            return subprocess.check_output(cmd)
 
     def write_root_my_cnf(self):
         """Write root my.cnf
