@@ -877,7 +877,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
 
         self.assertEqual(_string, midbc.get_cluster_status())
         midbc.wait_until_cluster_available.assert_called_once()
-        midbc.run_mysqlsh_script.assert_called_once_with(_script, stderr=None)
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
         # Cached data
         midbc.run_mysqlsh_script.reset_mock()
@@ -889,7 +889,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.run_mysqlsh_script.reset_mock()
         midbc._cached_cluster_status = _string
         self.assertEqual(_string, midbc.get_cluster_status(nocache=True))
-        midbc.run_mysqlsh_script.assert_called_once_with(_script, stderr=None)
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
     def test_get_cluster_status_summary(self):
         _status_dict = {"defaultReplicaSet": {"status": "OK"}}
@@ -1051,11 +1051,10 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         self.assertEqual(
             _byte_string,
-            midbc.run_mysqlsh_script(_script, stderr=self.stdin))
+            midbc.run_mysqlsh_script(_script))
         self.subprocess.check_output.assert_called_once_with(
             [midbc.mysqlsh_bin, "--no-wizard", "--python", "-f",
-             self.filename],
-            stderr=self.stdin)
+             self.filename])
         self.file.write.assert_called_once_with(_script)
         self.subprocess.check_call.assert_not_called()
 
@@ -1063,7 +1062,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.exists.return_value = False
         self.assertEqual(
             _byte_string,
-            midbc.run_mysqlsh_script(_script, stderr=self.stdin))
+            midbc.run_mysqlsh_script(_script))
         self.subprocess.check_call.assert_called_once_with(
             [midbc.mysqlsh_bin, "--help"])
 
