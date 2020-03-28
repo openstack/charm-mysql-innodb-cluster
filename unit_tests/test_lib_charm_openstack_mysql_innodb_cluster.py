@@ -262,9 +262,21 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
     def test_mysqlsh_bin(self):
         self.patch_object(mysql_innodb_cluster.os.path, "exists")
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.exists.return_value = True
         self.assertEqual(
             midbc.mysqlsh_bin,
             "/snap/bin/mysqlsh")
+        self.exists.return_value = False
+        self.assertEqual(
+            midbc.mysqlsh_bin,
+            "/snap/bin/mysql-shell")
+
+    def test_mysqlsh_common_dir(self):
+        self.patch_object(mysql_innodb_cluster.os.path, "exists")
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(
+            midbc.mysqlsh_common_dir,
+            "/root/snap/mysql-shell/common")
 
     def test_mysql_password(self):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
@@ -1031,6 +1043,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
     def test_run_mysqlsh_script(self):
+        self.patch_object(mysql_innodb_cluster.os.path, "exists")
+        self.exists.return_value = True
         _byte_string = "UTF-8 byte string".encode("UTF-8")
         self.subprocess.check_output.return_value = _byte_string
         _script = "print('Hello World!')"
@@ -1043,6 +1057,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
              self.filename],
             stderr=self.stdin)
         self.file.write.assert_called_once_with(_script)
+        self.subprocess.check_call.assert_not_called()
+
+        # No self.mysqlsh_common_dir
+        self.exists.return_value = False
+        self.assertEqual(
+            _byte_string,
+            midbc.run_mysqlsh_script(_script, stderr=self.stdin))
+        self.subprocess.check_call.assert_called_once_with(
+            [midbc.mysqlsh_bin, "--help"])
 
     def test_mysqldump(self):
         self.patch_object(mysql_innodb_cluster.datetime, "datetime")

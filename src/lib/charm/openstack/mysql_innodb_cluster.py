@@ -200,7 +200,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         if os.path.exists("/snap/bin/mysql-shell.mysqlsh"):
             return "/snap/bin/mysql-shell.mysqlsh"
         # Default to the full path version
-        return "/snap/mysql-shell/current/usr/bin/mysqlsh"
+        return "/snap/bin/mysql-shell"
+
+    @property
+    def mysqlsh_common_dir(self):
+        """Determine snap common dir for mysqlsh
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Path to common dir
+        :rtype: str
+        """
+        return "/root/snap/mysql-shell/common"
 
     @property
     def mysql_password(self):
@@ -1171,9 +1182,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: subprocess output
         :rtype: UTF-8 byte string
         """
-        # Use the /root dir because of the confined mysql-shell snap
+        if not os.path.exists(self.mysqlsh_common_dir):
+            # Pre-execute mysqlsh to create self.mysqlsh_common_dir
+            # If we don't do this the real execution will fail with an
+            # ambiguous error message. This will only ever execute once.
+            cmd = [self.mysqlsh_bin, "--help"]
+            subprocess.check_call(cmd)
+
+        # Use the self.mysqlsh_common_dir dir for the confined
+        # mysql-shell snap.
         with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", dir="/root") as _file:
+                mode="w", suffix=".py",
+                dir=self.mysqlsh_common_dir) as _file:
             _file.write(script)
             _file.flush()
 
