@@ -1054,7 +1054,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             midbc.run_mysqlsh_script(_script))
         self.subprocess.check_output.assert_called_once_with(
             [midbc.mysqlsh_bin, "--no-wizard", "--python", "-f",
-             self.filename])
+             self.filename], stderr=self.subprocess.PIPE)
         self.file.write.assert_called_once_with(_script)
         self.subprocess.check_call.assert_not_called()
 
@@ -1064,7 +1064,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             _byte_string,
             midbc.run_mysqlsh_script(_script))
         self.subprocess.check_call.assert_called_once_with(
-            [midbc.mysqlsh_bin, "--help"])
+            [midbc.mysqlsh_bin, "--help"], stderr=self.subprocess.PIPE)
 
     def test_mysqldump(self):
         self.patch_object(mysql_innodb_cluster.datetime, "datetime")

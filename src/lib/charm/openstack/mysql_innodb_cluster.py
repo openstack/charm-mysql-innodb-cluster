@@ -1183,7 +1183,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             # If we don't do this the real execution will fail with an
             # ambiguous error message. This will only ever execute once.
             cmd = [self.mysqlsh_bin, "--help"]
-            subprocess.check_call(cmd)
+            subprocess.check_call(cmd, stderr=subprocess.PIPE)
 
         # Use the self.mysqlsh_common_dir dir for the confined
         # mysql-shell snap.
@@ -1197,7 +1197,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             # of the mysql-shell snap
             cmd = [
                 self.mysqlsh_bin, "--no-wizard", "--python", "-f", _file.name]
-            return subprocess.check_output(cmd)
+            return subprocess.check_output(cmd, stderr=subprocess.PIPE)
 
     def write_root_my_cnf(self):
         """Write root my.cnf
