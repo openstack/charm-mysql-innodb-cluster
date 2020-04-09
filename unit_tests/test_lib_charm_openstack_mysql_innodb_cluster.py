@@ -399,6 +399,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual(_helper, midbc.get_db_helper())
         self.MySQL8Helper.assert_called_once()
 
+    def test_get_cluster_rw_db_helper(self):
+        _addr = "10.5.50.41"
+        _helper = mock.MagicMock()
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_db_helper = mock.MagicMock()
+        midbc.get_db_helper.return_value = _helper
+        midbc.get_cluster_primary_address = mock.MagicMock()
+        midbc.get_cluster_primary_address.return_value = _addr
+        self.assertEqual(_helper, midbc.get_cluster_rw_db_helper())
+        _helper.connect.assert_called_once_with(
+            user=midbc.cluster_user,
+            password=midbc.cluster_password,
+            host=_addr)
+
     def test_create_cluster_user(self):
         _user = "user"
         _pass = "pass"
@@ -719,8 +733,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper = mock.MagicMock()
         _helper.configure_db.return_value = _pass
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
-        midbc.get_db_helper = mock.MagicMock()
-        midbc.get_db_helper.return_value = _helper
+        midbc.get_cluster_rw_db_helper = mock.MagicMock()
+        midbc.get_cluster_rw_db_helper.return_value = _helper
 
         # One host
         self.assertEqual(
@@ -749,8 +763,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper = mock.MagicMock()
         _helper.configure_router.return_value = _pass
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
-        midbc.get_db_helper = mock.MagicMock()
-        midbc.get_db_helper.return_value = _helper
+        midbc.get_cluster_rw_db_helper = mock.MagicMock()
+        midbc.get_cluster_rw_db_helper.return_value = _helper
 
         # One host
         self.assertEqual(
@@ -912,6 +926,32 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _status_obj.reset_mock()
         midbc._cached_cluster_status = _status_dict
         self.assertEqual("OK", midbc.get_cluster_status_summary(nocache=True))
+        _status_obj.assert_called_once_with(nocache=True)
+
+    def test_get_cluster_primary_address(self):
+        _addr = "10.5.50.76"
+        _status_dict = {
+            "groupInformationSourceMember": "{}:3360".format(_addr)}
+        _status_obj = mock.MagicMock()
+        _status_obj.return_value = _status_dict
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_status = _status_obj
+
+        self.assertEqual(_addr, midbc.get_cluster_primary_address())
+        _status_obj.assert_called_once_with(nocache=False)
+
+        # Cached data
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual(_addr, midbc.get_cluster_primary_address())
+        _status_obj.assert_not_called()
+
+        # Nocache requested
+        _status_obj.reset_mock()
+        midbc._cached_cluster_status = _status_dict
+        self.assertEqual(
+            _addr, midbc.get_cluster_primary_address(nocache=True))
         _status_obj.assert_called_once_with(nocache=True)
 
     def test_get_cluster_status_text(self):

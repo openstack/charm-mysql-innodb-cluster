@@ -413,6 +413,23 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             upasswdf_template="/var/lib/charm/{}/mysql-{{}}.passwd"
                               .format(ch_core.hookenv.service_name()))
 
+    def get_cluster_rw_db_helper(self):
+        """Get connected RW instance of the MySQLDB8Helper class.
+
+        Connect to the RW cluster primary node and return a DB helper.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Instance of MySQLDB8Helper class
+        :rtype: MySQLDB8Helper instance
+        """
+        _helper = self.get_db_helper()
+        _helper.connect(
+            user=self.cluster_user,
+            password=self.cluster_password,
+            host=self.get_cluster_primary_address(nocache=True))
+        return _helper
+
     def create_cluster_user(
             self, cluster_address, cluster_user, cluster_password):
         """Create cluster user and grant permissions in the MySQL DB.
@@ -757,6 +774,32 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         self._cached_cluster_status = json.loads(output.decode("UTF-8"))
         return self._cached_cluster_status
 
+    def get_cluster_primary_address(self, nocache=False):
+        """Get cluster RW primary address.
+
+        Return cluster.status()['groupInformationSourceMember'] which is the
+        primary R/W node in the cluster.  This node is safe to use for writes
+        to the cluster.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param nocache: Do not return cached data
+        :type nocache: Boolean
+        :side effect: Calls self.get_cluster_status
+        :returns: String IP address
+        :rtype: Union[None, str]
+        """
+        if self._cached_cluster_status and not nocache:
+            _status = self._cached_cluster_status
+        else:
+            _status = self.get_cluster_status(nocache=nocache)
+        if not _status:
+            return
+        # Return addresss without port number
+        if ":" in _status['groupInformationSourceMember']:
+            return _status['groupInformationSourceMember'][:-5]
+        return _status['groupInformationSourceMember']
+
     def get_cluster_status_summary(self, nocache=False):
         """Get cluster status summary
 
@@ -944,10 +987,10 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 level="DEBUG")
             hosts = [hosts]
 
-        db_helper = self.get_db_helper()
+        rw_helper = self.get_cluster_rw_db_helper()
 
         for host in hosts:
-            password = db_helper.configure_db(host, database, username)
+            password = rw_helper.configure_db(host, database, username)
 
         return password
 
@@ -981,10 +1024,10 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 level="DEBUG")
             hosts = [hosts]
 
-        db_helper = self.get_db_helper()
+        rw_helper = self.get_cluster_rw_db_helper()
 
         for host in hosts:
-            password = db_helper.configure_router(host, username)
+            password = rw_helper.configure_router(host, username)
 
         return password
 
@@ -1108,7 +1151,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
     @tenacity.retry(wait=tenacity.wait_fixed(10),
                     reraise=True,
-                    stop=tenacity.stop_after_delay(5))
+                    stop=tenacity.stop_after_attempt(5))
     def wait_until_connectable(
             self, username=None, password=None, address=None):
         """Wait until MySQL instance is accessible.
@@ -1139,7 +1182,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
     @tenacity.retry(wait=tenacity.wait_fixed(10),
                     reraise=True,
-                    stop=tenacity.stop_after_delay(5))
+                    stop=tenacity.stop_after_attempt(5))
     def wait_until_cluster_available(self):
         """Wait until MySQL InnoDB Cluster is available.
 
