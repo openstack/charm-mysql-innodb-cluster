@@ -406,6 +406,12 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.get_db_helper = mock.MagicMock()
         midbc.get_db_helper.return_value = _helper
         midbc.get_cluster_primary_address = mock.MagicMock()
+
+        # No primary address found
+        midbc.get_cluster_primary_address.return_value = None
+        self.assertEqual(None, midbc.get_cluster_rw_db_helper())
+
+        # Return helper
         midbc.get_cluster_primary_address.return_value = _addr
         self.assertEqual(_helper, midbc.get_cluster_rw_db_helper())
         _helper.connect.assert_called_once_with(
@@ -592,11 +598,18 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.get_allowed_units.side_effect = self._fake_get_allowed_units
 
         midbc.configure_db_for_hosts = mock.MagicMock()
-        midbc.configure_db_for_hosts.side_effect = self._fake_configure
         midbc.configure_db_router = mock.MagicMock()
 
-        # Execute the function under test
-        midbc.create_databases_and_users(self.interface)
+        # Execute the function under test expect incomplete
+        midbc.configure_db_for_hosts.side_effect = [
+            x if x % 5 else None for x in range(1, 11)]
+        self.assertFalse(midbc.create_databases_and_users(self.interface))
+
+        # Execute the function under test expect complete
+        midbc.configure_db_for_hosts.reset_mock()
+        self.interface.set_db_connection_info.reset_mock()
+        midbc.configure_db_for_hosts.side_effect = self._fake_configure
+        self.assertTrue(midbc.create_databases_and_users(self.interface))
 
         # Validate
         midbc.configure_db_router.assert_not_called()
@@ -663,10 +676,17 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.configure_db_for_hosts = mock.MagicMock()
         midbc.configure_db_for_hosts.side_effect = self._fake_configure
         midbc.configure_db_router = mock.MagicMock()
-        midbc.configure_db_router.side_effect = self._fake_configure
 
-        # Execute the function under test
-        midbc.create_databases_and_users(self.interface)
+        # Execute the function under test expect incomplete
+        midbc.configure_db_router.side_effect = [
+            x if x % 3 else None for x in range(1, 11)]
+        self.assertFalse(midbc.create_databases_and_users(self.interface))
+
+        # Execute the function under test expect complete
+        midbc.configure_db_router.reset_mock()
+        self.interface.set_db_connection_info.reset_mock()
+        midbc.configure_db_router.side_effect = self._fake_configure
+        self.assertTrue(midbc.create_databases_and_users(self.interface))
 
         # Validate
         _conigure_db_router_calls = [
@@ -734,9 +754,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper.configure_db.return_value = _pass
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_cluster_rw_db_helper = mock.MagicMock()
-        midbc.get_cluster_rw_db_helper.return_value = _helper
+        midbc.get_cluster_rw_db_helper.return_value = None
+
+        # Early bailout
+        self.assertEqual(
+            None,
+            midbc.configure_db_for_hosts(_addr, _db, _user))
 
         # One host
+        midbc.get_cluster_rw_db_helper.return_value = _helper
         self.assertEqual(
             _pass,
             midbc.configure_db_for_hosts(_addr, _db, _user))
@@ -764,9 +790,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper.configure_router.return_value = _pass
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_cluster_rw_db_helper = mock.MagicMock()
-        midbc.get_cluster_rw_db_helper.return_value = _helper
+
+        # Early bailout
+        midbc.get_cluster_rw_db_helper.return_value = None
+        self.assertEqual(
+            None,
+            midbc.configure_db_router(_addr, _user))
 
         # One host
+        midbc.get_cluster_rw_db_helper.return_value = _helper
         self.assertEqual(
             _pass,
             midbc.configure_db_router(_addr, _user))

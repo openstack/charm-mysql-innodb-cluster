@@ -421,8 +421,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :param self: Self
         :type self: MySQLInnoDBClusterCharm instance
         :returns: Instance of MySQLDB8Helper class
-        :rtype: MySQLDB8Helper instance
+        :rtype: Union[None, MySQLDB8Helper]
         """
+        _primary = self.get_cluster_primary_address(nocache=True)
+        if not _primary:
+            ch_core.hookenv.log(
+                "Cannot determine the cluster primary RW node for writes.",
+                "WARNING")
+            return
         _helper = self.get_db_helper()
         _helper.connect(
             user=self.cluster_user,
@@ -694,7 +700,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             raise e
 
     def rejoin_instance(self, address):
-        """Rejoin Instance to the cluster
+        """Rejoin instance to the cluster
 
         Execute the cluster.rejoin_instance(address) to rejoin the specified
         instance to the cluster.
@@ -705,7 +711,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
-        ch_core.hookenv.log("XXX: REjoin {}".format(address))
+        ch_core.hookenv.log("Rejoin instance: {}.".format(address))
         _script = (
             "shell.connect('{user}:{pw}@{caddr}')\n"
             "cluster = dba.get_cluster('{name}')\n"
@@ -911,9 +917,10 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :param interface: Interface Object (shared-db or db-router)
         :type interface: reactive.relations.Endpoint object
         :side effect: interface.set_db_connection_info is executed
-        :returns: This function is called for its side effect
-        :rtype: None
+        :returns: True if successful
+        :rtype: Bool
         """
+        completed = []
         for unit in interface.all_joined_units:
 
             db_data = mysql.get_db_data(
@@ -932,6 +939,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
                     password = self.configure_db_for_hosts(
                         hostname, database, username)
+                    completed.append(password)
 
                     allowed_units = self.get_allowed_units(
                         database, username,
@@ -945,6 +953,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     username = db_data[prefix]['username']
 
                     password = self.configure_db_router(hostname, username)
+                    completed.append(password)
                     allowed_units = " ".join(
                         [x.unit_name for x in unit.relation.joined_units])
 
@@ -953,6 +962,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     db_host,
                     password,
                     allowed_units=allowed_units, prefix=prefix)
+
+        # Validate that all attempts succeeded.
+        # i.e. We were not attempting writes during a topology change.
+        if all(completed):
+            return True
+        return False
 
     # TODO: Generalize and move to mysql charmhelpers
     def configure_db_for_hosts(self, hosts, database, username):
@@ -988,6 +1003,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             hosts = [hosts]
 
         rw_helper = self.get_cluster_rw_db_helper()
+        if not rw_helper:
+            ch_core.hookenv.log(
+                "No connection to the cluster primary RW node "
+                "skipping DB creation.",
+                "WARNING")
+            return
 
         for host in hosts:
             password = rw_helper.configure_db(host, database, username)
@@ -1025,6 +1046,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             hosts = [hosts]
 
         rw_helper = self.get_cluster_rw_db_helper()
+        if not rw_helper:
+            ch_core.hookenv.log(
+                "No connection to the cluster primary RW node "
+                "skipping DB creation.",
+                "WARNING")
+            return
 
         for host in hosts:
             password = rw_helper.configure_router(host, username)

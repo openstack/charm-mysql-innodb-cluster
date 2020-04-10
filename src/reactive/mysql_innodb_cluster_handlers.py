@@ -237,29 +237,37 @@ def config_changed_restart():
 
 @reactive.when('leadership.is_leader')
 @reactive.when('leadership.set.cluster-instances-clustered')
+@reactive.when('endpoint.shared-db.changed')
 @reactive.when('shared-db.available')
 @reactive.when_not('charm.paused')
-def shared_db_respond(shared_db):
+def shared_db_respond():
     """Respond to Shared DB Requests.
-
-    :param shared_db: Shared-DB interface
-    :type shared-db: MySQLSharedProvides object
     """
+    ch_core.hookenv.log(
+        "The share-db relation is DEPRECATED. "
+        "Please use mysql-router and the db-router relation.",
+        "WARNING")
+    shared_db = reactive.endpoint_from_flag("shared-db.available")
     with charm.provide_charm_instance() as instance:
-        instance.create_databases_and_users(shared_db)
+        if instance.create_databases_and_users(shared_db):
+            ch_core.hookenv.log(
+                "Shared DB relation created DBs and users.", "DEBUG")
+            reactive.clear_flag('endpoint.shared-db.changed')
         instance.assess_status()
 
 
 @reactive.when('leadership.is_leader')
 @reactive.when('leadership.set.cluster-instances-clustered')
+@reactive.when('endpoint.db-router.changed')
 @reactive.when('db-router.available')
 @reactive.when_not('charm.paused')
-def db_router_respond(db_router):
+def db_router_respond():
     """Respond to DB Router Requests.
-
-    :param db_router: DB-Router interface
-    :type db_router_interface: MySQLRouterRequires object
     """
+    db_router = reactive.endpoint_from_flag("db-router.available")
     with charm.provide_charm_instance() as instance:
-        instance.create_databases_and_users(db_router)
+        if instance.create_databases_and_users(db_router):
+            ch_core.hookenv.log(
+                "DB Router relation created DBs and users.", "DEBUG")
+            reactive.clear_flag('endpoint.db-router.changed')
         instance.assess_status()

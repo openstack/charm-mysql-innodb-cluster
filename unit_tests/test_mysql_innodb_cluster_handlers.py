@@ -56,10 +56,12 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                 "shared_db_respond": (
                     "leadership.is_leader",
                     "leadership.set.cluster-instances-clustered",
+                    "endpoint.shared-db.changed",
                     "shared-db.available",),
                 "db_router_respond": (
                     "leadership.is_leader",
                     "leadership.set.cluster-instances-clustered",
+                    "endpoint.db-router.changed",
                     "db-router.available",),
             },
             "when_not": {
@@ -114,6 +116,8 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.db_router = mock.MagicMock()
         self.db_router.all_joined_units = [self.unit1]
         self.data = {}
+        self.patch_object(handlers.reactive, "endpoint_from_flag",
+                          new=mock.MagicMock())
 
     def _fake_data(self, key):
         return self.data.get(key)
@@ -229,11 +233,13 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.midbc.wait_until_cluster_available.assert_called_once()
 
     def test_shared_db_respond(self):
-        handlers.shared_db_respond(self.shared_db)
+        self.endpoint_from_flag.return_value = self.shared_db
+        handlers.shared_db_respond()
         self.midbc.create_databases_and_users.assert_called_once_with(
             self.shared_db)
 
     def test_db_router_respond(self):
-        handlers.db_router_respond(self.db_router)
+        self.endpoint_from_flag.return_value = self.db_router
+        handlers.db_router_respond()
         self.midbc.create_databases_and_users.assert_called_once_with(
             self.db_router)
