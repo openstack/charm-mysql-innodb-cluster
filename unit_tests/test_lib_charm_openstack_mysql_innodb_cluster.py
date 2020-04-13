@@ -596,6 +596,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_allowed_units = mock.MagicMock()
         midbc.get_allowed_units.side_effect = self._fake_get_allowed_units
+        _wait_timeout = 60
+        midbc.options.wait_timeout = _wait_timeout
 
         midbc.configure_db_for_hosts = mock.MagicMock()
         midbc.configure_db_router = mock.MagicMock()
@@ -631,22 +633,26 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 self.keystone_shared_db.relation_id, _addr, "keystone-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.keystone_shared_db.relation_id),
-                prefix=None),
+                prefix=None,
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.nova_shared_db.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
-                prefix="nova"),
+                prefix="nova",
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.nova_shared_db.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
-                prefix="novaapi"),
+                prefix="novaapi",
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.nova_shared_db.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
-                prefix="novacell0")]
+                prefix="novacell0",
+                wait_timeout=_wait_timeout)]
         self.interface.set_db_connection_info.assert_has_calls(
             _set_calls, any_order=True)
 
@@ -676,6 +682,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.configure_db_for_hosts = mock.MagicMock()
         midbc.configure_db_for_hosts.side_effect = self._fake_configure
         midbc.configure_db_router = mock.MagicMock()
+        _wait_timeout = 60
+        midbc.options.wait_timeout = _wait_timeout
 
         # Execute the function under test expect incomplete
         midbc.configure_db_router.side_effect = [
@@ -714,33 +722,39 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 self.kmr_db_router.relation_id, _addr, "keystone-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.kmr_db_router.relation_id),
-                prefix=self.mock_unprefixed),
+                prefix=self.mock_unprefixed,
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.kmr_db_router.relation_id, _addr, "mysqlrouteruser-pwd",
                 allowed_units=" ".join(
                     [x.unit_name for x in self.kmr_db_router.joined_units]),
-                prefix="mysqlrouter"),
+                prefix="mysqlrouter",
+                wait_timeout=_wait_timeout),
 
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nmr_db_router.relation_id),
-                prefix="nova"),
+                prefix="nova",
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nmr_db_router.relation_id),
-                prefix="novaapi"),
+                prefix="novaapi",
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nmr_db_router.relation_id),
-                prefix="novacell0"),
+                prefix="novacell0",
+                wait_timeout=_wait_timeout),
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "mysqlrouteruser-pwd",
                 allowed_units=" ".join(
                     [x.unit_name for x in self.nmr_db_router.joined_units]),
-                prefix="mysqlrouter")]
+                prefix="mysqlrouter",
+                wait_timeout=_wait_timeout)]
         self.interface.set_db_connection_info.assert_has_calls(
             _set_calls, any_order=True)
 

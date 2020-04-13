@@ -21,6 +21,10 @@ socket	= /var/run/mysqld/mysqld.sock
 # port		= 3306
 datadir	= /var/lib/mysql
 
+# Note: This is the non-interactive timeout setting. If you use an interactive
+# client like mysql client this value is displayed based on the
+# interactive_timeout value.
+wait_timeout = {{ options.wait_timeout }}
 
 # If MySQL is running as a replication slave, this should be
 # changed. Ref https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_tmpdir

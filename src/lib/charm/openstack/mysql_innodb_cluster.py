@@ -961,7 +961,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     unit.relation.relation_id,
                     db_host,
                     password,
-                    allowed_units=allowed_units, prefix=prefix)
+                    allowed_units=allowed_units,
+                    prefix=prefix,
+                    wait_timeout=self.options.wait_timeout)
 
         # Validate that all attempts succeeded.
         # i.e. We were not attempting writes during a topology change.
