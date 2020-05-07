@@ -12,8 +12,7 @@ options:
     packages: [ 'libmysqlclient-dev']
   snap:
     mysql-shell:
-      channel: edge
-      devmode: True
+      channel: stable
 repo: https://opendev.org/openstack/charm-mysql-innodb-cluster
 config:
   deletes:
