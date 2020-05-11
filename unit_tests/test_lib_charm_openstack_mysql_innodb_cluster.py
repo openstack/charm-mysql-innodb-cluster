@@ -1269,7 +1269,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "dba.reboot_cluster_from_complete_outage()"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
-                midbc.cluster_address, midbc.options.cluster_name))
+                midbc.cluster_address))
         self.assertEqual(_string, midbc.reboot_cluster_from_complete_outage())
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
