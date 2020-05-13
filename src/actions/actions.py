@@ -171,6 +171,26 @@ def reboot_cluster_from_complete_outage(args):
     )
 
 
+def cluster_rescan(args):
+    """Rescan the cluster
+
+    Execute cluster.rescan() to clean up metadata.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.cluster_rescan
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action return: Dictionary with command output
+    """
+    with charm.provide_charm_instance() as instance:
+        output = instance.cluster_rescan()
+    ch_core.hookenv.action_set({
+        "output": output,
+        "outcome": "Success"}
+    )
+
+
 def rejoin_instance(args):
     """Rejoin a given instance to the cluster.
 
@@ -193,6 +213,60 @@ def rejoin_instance(args):
     address = ch_core.hookenv.action_get("address")
     with charm.provide_charm_instance() as instance:
         output = instance.rejoin_instance(address)
+    ch_core.hookenv.action_set({
+        "output": output,
+        "outcome": "Success"}
+    )
+
+
+def add_instance(args):
+    """Add an instance to the cluster.
+
+    If a new instance is not able to be joined to the cluster, this action will
+    configure and add the unit to the cluster.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.configure_and_add_instance
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action param address: String address of the instance to be joined
+    :action return: Dictionary with command output
+    """
+    # Note: Due to issues/# reactive does not initiate Endpoints during an
+    # action execution.  This is here to work around that until the issue is
+    # resolved.
+    reactive.Endpoint._startup()
+    address = ch_core.hookenv.action_get("address")
+    with charm.provide_charm_instance() as instance:
+        output = instance.configure_and_add_instance(address)
+    ch_core.hookenv.action_set({
+        "output": output,
+        "outcome": "Success"}
+    )
+
+
+def remove_instance(args):
+    """Remove an instance from the cluster.
+
+    This action cleanly removes an instance from the cluster. If an instance
+    has died and is unrecoverable it shows up in metadata as MISSING. This
+    action will remove an instance from the metadata using the force option
+    even if it is unreachable.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.remove_instance
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action param address: String address of the instance to be removed
+    :action param force: Boolean force removal of missing instance
+    :action return: Dictionary with command output
+    """
+    address = ch_core.hookenv.action_get("address")
+    force = ch_core.hookenv.action_get("force")
+    with charm.provide_charm_instance() as instance:
+        output = instance.remove_instance(address, force=force)
     ch_core.hookenv.action_set({
         "output": output,
         "outcome": "Success"}
@@ -231,7 +305,10 @@ ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
            "set-cluster-option": set_cluster_option,
            "reboot-cluster-from-complete-outage":
                reboot_cluster_from_complete_outage,
-           "rejoin-instance": rejoin_instance}
+           "rejoin-instance": rejoin_instance,
+           "add-instance": add_instance,
+           "remove-instance": remove_instance,
+           "cluster-rescan": cluster_rescan}
 
 
 def main(args):

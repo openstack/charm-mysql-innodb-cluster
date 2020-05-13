@@ -66,7 +66,7 @@ def create_local_cluster_user():
 @reactive.when('local.cluster.user-created')
 @reactive.when('cluster.connected')
 @reactive.when_not('cluster.available')
-def send_cluster_connection_info(cluster):
+def send_cluster_connection_info():
     """Send cluster connection information.
 
     Send cluster user, password and address information over the cluster
@@ -75,6 +75,7 @@ def send_cluster_connection_info(cluster):
     :param cluster: Cluster interface
     :type cluster: MySQLInnoDBClusterPeers object
     """
+    cluster = reactive.endpoint_from_flag("cluster.connected")
     ch_core.hookenv.log("Send cluster connection information.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         cluster.set_cluster_connection_info(
@@ -86,7 +87,7 @@ def send_cluster_connection_info(cluster):
 
 @reactive.when_not('local.cluster.all-users-created')
 @reactive.when('cluster.available')
-def create_remote_cluster_user(cluster):
+def create_remote_cluster_user():
     """Create remote cluster user.
 
     Create the remote cluster peer user and grant cluster permissions in the
@@ -95,6 +96,7 @@ def create_remote_cluster_user(cluster):
     :param cluster: Cluster interface
     :type cluster: MySQLInnoDBClusterPeers object
     """
+    cluster = reactive.endpoint_from_flag("cluster.available")
     ch_core.hookenv.log("Creating remote users.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
@@ -129,7 +131,7 @@ def initialize_cluster():
 @reactive.when('local.cluster.all-users-created')
 @reactive.when('cluster.available')
 @reactive.when_not('leadership.set.cluster-instances-configured')
-def configure_instances_for_clustering(cluster):
+def configure_instances_for_clustering():
     """Configure cluster peers for clustering.
 
     Prepare peers to be added to the cluster.
@@ -137,6 +139,7 @@ def configure_instances_for_clustering(cluster):
     :param cluster: Cluster interface
     :type cluster: MySQLInnoDBClusterPeers object
     """
+    cluster = reactive.endpoint_from_flag("cluster.available")
     ch_core.hookenv.log("Configuring instances for clustering.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
@@ -162,12 +165,13 @@ def configure_instances_for_clustering(cluster):
 @reactive.when('leadership.set.cluster-instances-configured')
 @reactive.when('cluster.available')
 @reactive.when_not('leadership.set.cluster-instances-clustered')
-def add_instances_to_cluster(cluster):
+def add_instances_to_cluster():
     """Add cluster peers to the cluster.
 
     :param cluster: Cluster interface
     :type cluster: MySQLInnoDBClusterPeers object
     """
+    cluster = reactive.endpoint_from_flag("cluster.available")
     ch_core.hookenv.log("Adding instances to cluster.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
@@ -189,7 +193,7 @@ def add_instances_to_cluster(cluster):
 @reactive.when_not('leadership.is_leader')
 @reactive.when('leadership.set.cluster-created')
 @reactive.when('cluster.available')
-def signal_clustered(cluster):
+def signal_clustered():
     """Signal unit clustered to peers.
 
     Set this unit clustered on the cluster peer relation.
@@ -197,6 +201,7 @@ def signal_clustered(cluster):
     :param cluster: Cluster interface
     :type cluster: MySQLInnoDBClusterPeers object
     """
+    cluster = reactive.endpoint_from_flag("cluster.available")
     # Optimize clustering by causing a cluster relation changed
     with charm.provide_charm_instance() as instance:
         if reactive.is_flag_set(
@@ -271,3 +276,28 @@ def db_router_respond():
                 "DB Router relation created DBs and users.", "DEBUG")
             reactive.clear_flag('endpoint.db-router.changed')
         instance.assess_status()
+
+
+@reactive.when('endpoint.cluster.changed.unit-configure-ready')
+@reactive.when('leadership.set.cluster-instances-clustered')
+@reactive.when('leadership.is_leader')
+def scale_out():
+    """Handle scale-out adding new nodes to an existing cluster."""
+
+    ch_core.hookenv.log("Scale out: add new nodes.", "DEBUG")
+    with charm.provide_charm_instance() as instance:
+        if not reactive.is_flag_set(
+                "leadership.set.cluster-instance-clustered-{}"
+                .format(instance.cluster_address)):
+            ch_core.hookenv.log(
+                "Unexpected edge case. This node is the leader but it is "
+                "not yet clustered. As a non-cluster member it will not be "
+                "able to join itself to the cluster. Run the 'add_instance' "
+                "action on a member node with this unit's IP address to join "
+                "this instance to the cluster.",
+                "WARNING")
+            return
+    create_remote_cluster_user()
+    configure_instances_for_clustering()
+    add_instances_to_cluster()
+    reactive.clear_flag('endpoint.cluster.changed.unit-configure-ready')

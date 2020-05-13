@@ -202,6 +202,11 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "mysqlrouter_username": "mysqlrouteruser",
             "mysqlrouter_hostname": self.nmr_unit7_ip}
 
+        self.unit1 = mock.MagicMock(name="FakeUnit")
+        self.unit1.received.__getitem__.side_effect = self._fake_data
+        self.cluster = mock.MagicMock()
+        self.cluster.all_joined_units = [self.unit1]
+
         # Generic interface
         self.interface = mock.MagicMock()
 
@@ -427,6 +432,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_db_helper = mock.MagicMock()
         midbc.get_db_helper.return_value = _helper
+        midbc.get_cluster_rw_db_helper = mock.MagicMock(return_value=None)
         # Non-local
         midbc.create_cluster_user(_addr, _user, _pass)
         _calls = [
@@ -533,10 +539,13 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _remote_addr = "10.10.60.60"
         _name = "theCluster"
         self.get_relation_ip.return_value = _local_addr
+        self.get_relation_ip.return_value = _local_addr
         self.data = {"cluster-password": _pass}
         self.is_flag_set.return_value = False
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
         midbc._get_password = mock.MagicMock()
         midbc._get_password.side_effect = self._fake_data
         midbc.wait_until_connectable = mock.MagicMock()
@@ -1235,6 +1244,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.get_relation_ip.return_value = _local_addr
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
         midbc.options.cluster_name = _name
         midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
@@ -1269,7 +1280,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "dba.reboot_cluster_from_complete_outage()"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
-                midbc.cluster_address, midbc.options.cluster_name))
+                midbc.cluster_address))
         self.assertEqual(_string, midbc.reboot_cluster_from_complete_outage())
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
@@ -1282,6 +1293,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.get_relation_ip.return_value = _local_addr
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
         midbc.options.cluster_name = _name
         midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
@@ -1298,3 +1311,95 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 midbc.cluster_user, midbc.cluster_password, _remote_addr))
         self.assertEqual(_string, midbc.rejoin_instance(_remote_addr))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+    def test_remove_instance(self):
+        _pass = "clusterpass"
+        _name = "theCluster"
+        _string = "status output"
+        _local_addr = "10.10.50.50"
+        _remote_addr = "10.10.50.70"
+        self.get_relation_ip.return_value = _local_addr
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.get_cluster('{}')\n"
+            "cluster.remove_instance('{}@{}', {{'force': False}})"
+            .format(
+                midbc.cluster_user, midbc.cluster_password,
+                midbc.cluster_address, midbc.options.cluster_name,
+                midbc.cluster_user, _remote_addr))
+        self.assertEqual(_string, midbc.remove_instance(_remote_addr))
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+    def test_cluster_rescan(self):
+        _pass = "clusterpass"
+        _name = "theCluster"
+        _string = "status output"
+        _local_addr = "10.10.50.50"
+        self.get_relation_ip.return_value = _local_addr
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.get_cluster('{}')\n"
+            "cluster.rescan()"
+            .format(
+                midbc.cluster_user, midbc.cluster_password,
+                midbc.cluster_address, midbc.options.cluster_name))
+        self.assertEqual(_string, midbc.cluster_rescan())
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
+    def test_configure_and_add_instance(self):
+        _pass = "clusterpass"
+        _name = "theCluster"
+        _string = "status output"
+        _local_addr = "10.10.50.50"
+        _remote_addr = "10.10.50.70"
+        _user = "user"
+        self.get_relation_ip.return_value = _local_addr
+        self.patch_object(
+            mysql_innodb_cluster.reactive, "endpoint_from_flag",
+            return_value=self.cluster)
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+        self.data = {
+            "cluster-address": _remote_addr,
+            "cluster-user": _user,
+            "cluster-password": _pass,
+        }
+        _create_cluster_user = mock.MagicMock()
+        midbc.create_cluster_user = _create_cluster_user
+        _configure_instance = mock.MagicMock()
+        midbc.configure_instance = _configure_instance
+        _add_instance_to_cluster = mock.MagicMock()
+        midbc.add_instance_to_cluster = _add_instance_to_cluster
+
+        midbc.configure_and_add_instance(address=_remote_addr)
+        _create_cluster_user.assert_called_once_with(
+            _remote_addr, _user, _pass)
+        _configure_instance.assert_called_once_with(_remote_addr)
+        _add_instance_to_cluster.assert_called_once_with(_remote_addr)
