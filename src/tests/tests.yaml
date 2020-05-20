@@ -1,10 +1,6 @@
 charm_name: mysql-innodb-cluster
 configure:
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-- eoan_full_model:
-    - zaza.openstack.charm_tests.glance.setup.add_lts_image
-    - zaza.openstack.charm_tests.nova.setup.create_flavors
-    - zaza.openstack.charm_tests.keystone.setup.add_demo_user
 - focal_full_model:
     - zaza.openstack.charm_tests.vault.setup.auto_initialize
     - zaza.openstack.charm_tests.glance.setup.add_lts_image
@@ -14,28 +10,19 @@ configure:
     - zaza.openstack.charm_tests.keystone.setup.add_demo_user
 - scale_in_out:
     - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-# The pause and resume test validates changing the R/W primary.
-# Running the keystone tests after the MySQLInnoDBClusterTests
-# validates DB functionality after a change in the R/W primary.
 tests:
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
-- eoan_full_model:
-    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
-    - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 - focal_full_model:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 - scale_in_out:
-    # Temporarily disabling the cold start tests due to
-    # https://bugs.mysql.com/bug.php?id=97279
-    # - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
+    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterScaleTest
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 dev_bundles:
 gate_bundles:
 - focal_full_model: focal-full-ha
-- eoan_full_model: eoan-full-ha
 - scale_in_out: focal
 smoke_bundles:
 - focal

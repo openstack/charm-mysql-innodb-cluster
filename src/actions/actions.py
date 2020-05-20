@@ -72,7 +72,7 @@ def mysqldump(args):
         )
     except subprocess.CalledProcessError as e:
         ch_core.hookenv.action_set({
-            "output": e.output,
+            "output": e.stderr.decode("UTF-8"),
             "return-code": e.returncode,
             "traceback": traceback.format_exc()})
         ch_core.hookenv.action_fail("mysqldump failed")
@@ -107,7 +107,7 @@ def restore_mysqldump(args):
         )
     except subprocess.CalledProcessError as e:
         ch_core.hookenv.action_set({
-            "output": e.output,
+            "output": e.stderr.decode("UTF-8"),
             "return-code": e.returncode,
             "traceback": traceback.format_exc()})
         ch_core.hookenv.action_fail(
@@ -127,16 +127,16 @@ def cluster_status(args):
     :rtype: None
     :action return: Dictionary with command output
     """
-    with charm.provide_charm_instance() as instance:
-        try:
+    try:
+        with charm.provide_charm_instance() as instance:
             _status = json.dumps(instance.get_cluster_status())
             ch_core.hookenv.action_set({"cluster-status": _status})
-        except subprocess.CalledProcessError as e:
-            ch_core.hookenv.action_set({
-                "output": e.output,
-                "return-code": e.returncode,
-                "traceback": traceback.format_exc()})
-            ch_core.hookenv.action_fail("Cluster status failed")
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("Cluster status failed")
 
 
 def reboot_cluster_from_complete_outage(args):
@@ -159,16 +159,24 @@ def reboot_cluster_from_complete_outage(args):
     # action execution.  This is here to work around that until the issue is
     # resolved.
     reactive.Endpoint._startup()
-    with charm.provide_charm_instance() as instance:
-        output = instance.reboot_cluster_from_complete_outage()
-        # Add all peers back to the cluster
-        for address in instance.cluster_peer_addresses():
-            output += instance.rejoin_instance(address)
-        instance.assess_status()
-    ch_core.hookenv.action_set({
-        "output": output,
-        "outcome": "Success"}
-    )
+    try:
+        with charm.provide_charm_instance() as instance:
+            output = instance.reboot_cluster_from_complete_outage()
+            # Add all peers back to the cluster
+            for address in instance.cluster_peer_addresses():
+                output += instance.rejoin_instance(address)
+            instance.assess_status()
+        ch_core.hookenv.action_set({
+            "output": output,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail(
+            "Reboot cluster from complete outage failed.")
 
 
 def cluster_rescan(args):
@@ -183,12 +191,19 @@ def cluster_rescan(args):
     :rtype: None
     :action return: Dictionary with command output
     """
-    with charm.provide_charm_instance() as instance:
-        output = instance.cluster_rescan()
-    ch_core.hookenv.action_set({
-        "output": output,
-        "outcome": "Success"}
-    )
+    try:
+        with charm.provide_charm_instance() as instance:
+            output = instance.cluster_rescan()
+        ch_core.hookenv.action_set({
+            "output": output,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("Cluster rescan failed.")
 
 
 def rejoin_instance(args):
@@ -211,12 +226,19 @@ def rejoin_instance(args):
     :action return: Dictionary with command output
     """
     address = ch_core.hookenv.action_get("address")
-    with charm.provide_charm_instance() as instance:
-        output = instance.rejoin_instance(address)
-    ch_core.hookenv.action_set({
-        "output": output,
-        "outcome": "Success"}
-    )
+    try:
+        with charm.provide_charm_instance() as instance:
+            output = instance.rejoin_instance(address)
+        ch_core.hookenv.action_set({
+            "output": output,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("Rejoin instance failed")
 
 
 def add_instance(args):
@@ -238,12 +260,19 @@ def add_instance(args):
     # resolved.
     reactive.Endpoint._startup()
     address = ch_core.hookenv.action_get("address")
-    with charm.provide_charm_instance() as instance:
-        output = instance.configure_and_add_instance(address)
-    ch_core.hookenv.action_set({
-        "output": output,
-        "outcome": "Success"}
-    )
+    try:
+        with charm.provide_charm_instance() as instance:
+            output = instance.configure_and_add_instance(address)
+        ch_core.hookenv.action_set({
+            "output": output,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("Add instance failed")
 
 
 def remove_instance(args):
@@ -265,12 +294,19 @@ def remove_instance(args):
     """
     address = ch_core.hookenv.action_get("address")
     force = ch_core.hookenv.action_get("force")
-    with charm.provide_charm_instance() as instance:
-        output = instance.remove_instance(address, force=force)
-    ch_core.hookenv.action_set({
-        "output": output,
-        "outcome": "Success"}
-    )
+    try:
+        with charm.provide_charm_instance() as instance:
+            output = instance.remove_instance(address, force=force)
+        ch_core.hookenv.action_set({
+            "output": output,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("Remove instance failed")
 
 
 def set_cluster_option(args):
@@ -290,12 +326,19 @@ def set_cluster_option(args):
     """
     key = ch_core.hookenv.action_get("key")
     value = ch_core.hookenv.action_get("value")
-    with charm.provide_charm_instance() as instance:
-        output = instance.set_cluster_option(key, value)
-    ch_core.hookenv.action_set({
-        "output": output,
-        "outcome": "Success"}
-    )
+    try:
+        with charm.provide_charm_instance() as instance:
+            output = instance.set_cluster_option(key, value)
+        ch_core.hookenv.action_set({
+            "output": output,
+            "outcome": "Success"}
+        )
+    except subprocess.CalledProcessError as e:
+        ch_core.hookenv.action_set({
+            "output": e.stderr.decode("UTF-8"),
+            "return-code": e.returncode,
+            "traceback": traceback.format_exc()})
+        ch_core.hookenv.action_fail("Set cluster option failed")
 
 
 # A dictionary of all the defined actions to callables (which take
