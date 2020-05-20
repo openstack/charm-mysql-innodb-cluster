@@ -63,6 +63,10 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "leadership.set.cluster-instances-clustered",
                     "endpoint.db-router.changed",
                     "db-router.available",),
+                "scale_out": (
+                    "endpoint.cluster.changed.unit-configure-ready",
+                    "leadership.set.cluster-instances-clustered",
+                    "leadership.is_leader",),
             },
             "when_not": {
                 "leader_install": ("charm.installed",),
@@ -141,7 +145,8 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.set_flag.assert_called_once_with("local.cluster.user-created")
 
     def test_send_cluster_connection_info(self):
-        handlers.send_cluster_connection_info(self.cluster)
+        self.endpoint_from_flag.return_value = self.cluster
+        handlers.send_cluster_connection_info()
         self.cluster.set_cluster_connection_info.assert_called_once_with(
             self.midbc.cluster_address,
             self.midbc.cluster_user,
@@ -154,7 +159,8 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.data = {"cluster-address": _addr,
                      "cluster-user": _user,
                      "cluster-password": _pass}
-        handlers.create_remote_cluster_user(self.cluster)
+        self.endpoint_from_flag.return_value = self.cluster
+        handlers.create_remote_cluster_user()
         self.midbc.create_cluster_user.assert_called_once_with(
             _addr, _user, _pass)
         self.cluster.set_unit_configure_ready.assert_called_once()
@@ -169,10 +175,11 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
 
     def test_configure_instances_for_clustering(self):
         _addr = "10.10.10.30"
+        self.endpoint_from_flag.return_value = self.cluster
         # Not ready
         self.is_flag_set.return_value = False
         self.data = {"cluster-address": _addr}
-        handlers.configure_instances_for_clustering(self.cluster)
+        handlers.configure_instances_for_clustering()
         self.midbc.configure_instance.assert_not_called()
         self.midbc.add_instance_to_cluster.assert_not_called()
         self.leader_set.assert_not_called()
@@ -181,7 +188,7 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.midbc.reset_mock()
         self.is_flag_set.return_value = False
         self.data = {"cluster-address": _addr, "unit-configure-ready": True}
-        handlers.configure_instances_for_clustering(self.cluster)
+        handlers.configure_instances_for_clustering()
         self.midbc.configure_instance.assert_called_once_with(_addr)
         self.midbc.add_instance_to_cluster.assert_called_once_with(_addr)
         self.leader_set.assert_not_called()
@@ -189,7 +196,7 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         # All ready
         self.midbc.reset_mock()
         self.is_flag_set.return_value = True
-        handlers.configure_instances_for_clustering(self.cluster)
+        handlers.configure_instances_for_clustering()
         self.midbc.configure_instance.assert_called_once_with(_addr)
         self.midbc.add_instance_to_cluster.assert_called_once_with(_addr)
         self.leader_set.assert_called_once_with(
@@ -197,32 +204,34 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
 
     def test_add_instances_to_cluster(self):
         _addr = "10.10.10.30"
+        self.endpoint_from_flag.return_value = self.cluster
 
         # Some but not all
         self.is_flag_set.return_value = False
         self.data = {"cluster-address": _addr}
-        handlers.add_instances_to_cluster(self.cluster)
+        handlers.add_instances_to_cluster()
         self.midbc.add_instance_to_cluster.assert_called_once_with(_addr)
         self.leader_set.assert_not_called()
 
         # All ready
         self.midbc.reset_mock()
         self.is_flag_set.return_value = True
-        handlers.add_instances_to_cluster(self.cluster)
+        handlers.add_instances_to_cluster()
         self.midbc.add_instance_to_cluster.assert_called_once_with(_addr)
         self.leader_set.assert_called_once_with(
             {"cluster-instances-clustered": True})
 
     def test_signal_clustered(self):
         # Unit not clustered
+        self.endpoint_from_flag.return_value = self.cluster
         self.is_flag_set.return_value = False
-        handlers.signal_clustered(self.cluster)
+        handlers.signal_clustered()
         self.cluster.set_unit_clustered.assert_not_called()
 
         # Unit Clustered
         self.midbc.reset_mock()
         self.is_flag_set.return_value = True
-        handlers.signal_clustered(self.cluster)
+        handlers.signal_clustered()
         self.cluster.set_unit_clustered.assert_called_once()
 
     def test_config_changed(self):

@@ -470,8 +470,13 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         if cluster_address in self.cluster_address:
             addresses.append("localhost")
 
-        m_helper = self.get_db_helper()
-        m_helper.connect(password=self.mysql_password)
+        # If this is scale out and the cluster already exists, use the cluster
+        # RW node for writes.
+        m_helper = self.get_cluster_rw_db_helper()
+        if not m_helper:
+            m_helper = self.get_db_helper()
+            m_helper.connect(password=self.mysql_password)
+
         for address in addresses:
             try:
                 m_helper.execute(SQL_CLUSTER_USER_CREATE.format(
@@ -603,12 +608,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
+        _primary = self.get_cluster_primary_address(nocache=True)
         _script = (
             "shell.connect('{}:{}@{}')\n"
             "cluster = dba.get_cluster('{}')\n"
             "cluster.set_option('{}', {})"
             .format(
-                self.cluster_user, self.cluster_password, self.cluster_address,
+                self.cluster_user, self.cluster_password,
+                _primary or self.cluster_address,
                 self.options.cluster_name, key, value))
         try:
             output = self.run_mysqlsh_script(_script).decode("UTF-8")
@@ -626,7 +633,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         :param self: Self
         :type self: MySQLInnoDBClusterCharm instance
-        :param address: Address of the MySQL instance to be configured
+        :param address: Address of the MySQL instance to be clustered
         :type address: str
         :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
@@ -639,6 +646,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                                 .format(address), "WARNING")
             return
 
+        _primary = self.get_cluster_primary_address(nocache=True)
         ch_core.hookenv.log("Adding instance, {}, to the cluster."
                             .format(address), "INFO")
         _script = (
@@ -650,7 +658,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             "{{'recoveryMethod': 'clone'}})"
             .format(
                 user=self.cluster_user, pw=self.cluster_password,
-                caddr=self.cluster_address,
+                caddr=_primary or self.cluster_address,
                 name=self.options.cluster_name, addr=address))
         try:
             output = self.run_mysqlsh_script(_script)
@@ -711,6 +719,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
+        _primary = self.get_cluster_primary_address(nocache=True)
         ch_core.hookenv.log("Rejoin instance: {}.".format(address))
         _script = (
             "shell.connect('{user}:{pw}@{caddr}')\n"
@@ -718,12 +727,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             "cluster.rejoin_instance('{user}:{pw}@{addr}')"
             .format(
                 user=self.cluster_user, pw=self.cluster_password,
-                caddr=self.cluster_address,
+                caddr=_primary or self.cluster_address,
                 name=self.cluster_name, addr=address))
         try:
             output = self.run_mysqlsh_script(_script).decode("UTF-8")
             ch_core.hookenv.log(
-                "Rejoin isntance {} successful: "
+                "Rejoin instance {} successful: "
                 "{}".format(address, output),
                 level="DEBUG")
             return output
@@ -734,6 +743,107 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 "ERROR")
             # Reraise for action handling
             raise e
+
+    def remove_instance(self, address, force=False):
+        """Remove instance from the cluster
+
+        Execute the cluster.remove_instance(address) to remove an instance from
+        the cluster.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        _primary = self.get_cluster_primary_address(nocache=True)
+        ch_core.hookenv.log("Rejoin instance: {}.".format(address))
+        _script = (
+            "shell.connect('{user}:{pw}@{caddr}')\n"
+            "cluster = dba.get_cluster('{name}')\n"
+            "cluster.remove_instance('{user}@{addr}', {{'force': {force}}})"
+            .format(
+                user=self.cluster_user, pw=self.cluster_password,
+                caddr=_primary or self.cluster_address,
+                name=self.cluster_name, addr=address, force=force))
+        try:
+            output = self.run_mysqlsh_script(_script).decode("UTF-8")
+            ch_core.hookenv.log(
+                "Remove instance {} successful: "
+                "{}".format(address, output),
+                level="DEBUG")
+            return output
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed removing instance {}: {}"
+                .format(address, e.stderr.decode("UTF-8")),
+                "ERROR")
+            # Reraise for action handling
+            raise e
+
+    def cluster_rescan(self):
+        """Rescan the cluster
+
+        Execute the cluster.rescan() to cleanup metadata.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        _primary = self.get_cluster_primary_address(nocache=True)
+        ch_core.hookenv.log("Rescanning the cluster.")
+        _script = (
+            "shell.connect('{user}:{pw}@{caddr}')\n"
+            "cluster = dba.get_cluster('{name}')\n"
+            "cluster.rescan()"
+            .format(
+                user=self.cluster_user, pw=self.cluster_password,
+                caddr=_primary or self.cluster_address,
+                name=self.cluster_name))
+        try:
+            output = self.run_mysqlsh_script(_script).decode("UTF-8")
+            ch_core.hookenv.log(
+                "Cluster rescan successful",
+                level="DEBUG")
+            return output
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed rescanning the cluster.",
+                "ERROR")
+            # Reraise for action handling
+            raise e
+
+    def configure_and_add_instance(self, address):
+        """Configure and add an instance to the cluster.
+
+        If an instance was not able to be joined to the cluster this method
+        will make sure it is configured and add it to the cluster.
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :side effect: Calls self.create_user, self.configure_instance and
+                      self.add_instance_to_cluster.
+        :returns: This function is called for its side effects
+        :rtype: None
+        """
+        ch_core.hookenv.log(
+            "Configuring and adding instance to the cluster: {}."
+            .format(address))
+        cluster = reactive.endpoint_from_flag("cluster.available")
+        if not cluster:
+            raise Exception(
+                "Cluster relation is not available in order to "
+                "create cluster user for {}.".format(address))
+        # Make sure we have the user in the DB
+        for unit in cluster.all_joined_units:
+            self.create_cluster_user(
+                unit.received['cluster-address'],
+                unit.received['cluster-user'],
+                unit.received['cluster-password'])
+        self.configure_instance(address)
+        self.add_instance_to_cluster(address)
 
     def get_cluster_status(self, nocache=False):
         """Get cluster status
@@ -750,6 +860,15 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: Dictionary cluster status output
         :rtype: Union[None, dict]
         """
+        # Speed up when we are not yet clustered
+        if not reactive.is_flag_set(
+                "leadership.set.cluster-instance-clustered-{}"
+                .format(self.cluster_address)):
+            ch_core.hookenv.log(
+                "This instance is not yet clustered: cannot determine the "
+                "cluster status.", "WARNING")
+            return
+
         # Try the cached version first
         if self._cached_cluster_status and not nocache:
             return self._cached_cluster_status
