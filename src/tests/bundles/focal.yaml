@@ -4,11 +4,11 @@ relations:
 - ["mysql-router:db-router", "mysql-innodb-cluster:db-router"]
 applications:
   mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
   mysql-innodb-cluster:
     series: focal
     charm: ../../../mysql-innodb-cluster
     num_units: 3
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: cs:~openstack-charmers/keystone
     num_units: 1
