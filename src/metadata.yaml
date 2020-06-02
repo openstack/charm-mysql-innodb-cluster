@@ -5,11 +5,12 @@ description: |
   MySQL InnoDB Cluster Charm deploys and manages the lifecycle of a
   MySQL InnoDB Cluster.
 tags:
-  - databases
+- databases
 subordinate: false
 series:
-  - focal
-  - eoan
+- focal
+- eoan
+- groovy
 provides:
   shared-db:
     interface: mysql-shared
@@ -21,6 +22,6 @@ peers:
 resources:
   mysql-shell:
     type: file
-    filename: 'mysql-shell.snap'
+    filename: mysql-shell.snap
     description: |
       Snap for mysql-shell
