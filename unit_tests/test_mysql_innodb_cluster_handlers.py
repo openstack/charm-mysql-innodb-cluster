@@ -67,6 +67,12 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "endpoint.cluster.changed.unit-configure-ready",
                     "leadership.set.cluster-instances-clustered",
                     "leadership.is_leader",),
+                "request_certificates": (
+                    "certificates.available",
+                    "cluster.available",),
+                "configure_certificates": (
+                    "certificates.ca.changed",
+                    "certificates.certs.changed",),
             },
             "when_not": {
                 "leader_install": ("charm.installed",),

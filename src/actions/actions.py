@@ -163,7 +163,7 @@ def reboot_cluster_from_complete_outage(args):
         with charm.provide_charm_instance() as instance:
             output = instance.reboot_cluster_from_complete_outage()
             # Add all peers back to the cluster
-            for address in instance.cluster_peer_addresses():
+            for address in instance.cluster_peer_addresses:
                 output += instance.rejoin_instance(address)
             instance.assess_status()
         ch_core.hookenv.action_set({

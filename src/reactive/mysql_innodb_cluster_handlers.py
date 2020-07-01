@@ -6,6 +6,7 @@ import charms_openstack.bus
 import charms_openstack.charm as charm
 
 import charmhelpers.core as ch_core
+import charmhelpers.contrib.openstack.cert_utils as cert_utils
 
 import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
 
@@ -14,8 +15,7 @@ charms_openstack.bus.discover()
 
 charm.use_defaults(
     'update-status',
-    'upgrade-charm',
-    'certificates.available')
+    'upgrade-charm')
 
 
 @reactive.when('leadership.is_leader')
@@ -301,3 +301,43 @@ def scale_out():
     configure_instances_for_clustering()
     add_instances_to_cluster()
     reactive.clear_flag('endpoint.cluster.changed.unit-configure-ready')
+
+
+@reactive.when('certificates.available')
+@reactive.when('cluster.available')
+def request_certificates():
+    """When the certificates interface is available, request TLS certificates.
+    """
+    tls = reactive.endpoint_from_flag('certificates.available')
+    with charm.provide_charm_instance() as instance:
+        req = cert_utils.CertRequest(json_encode=False)
+        req.add_hostname_cn()
+        # TODO: We actually want the db-router bindings for each node and not
+        # the cluster binding. However, deploys will be using 127.0.0.1 with
+        # mysql-router.
+        # Add localhost for mysql-router connections
+        req.add_hostname_cn_ip(instance.cluster_peer_addresses + ["127.0.0.1"])
+        for cn, req in req.get_request().get('cert_requests', {}).items():
+            tls.add_request_server_cert(cn, req['sans'])
+        tls.request_server_certs()
+        instance.assess_status()
+
+
+@reactive.when_any(
+    'certificates.ca.changed',
+    'certificates.certs.changed')
+def configure_certificates():
+    """When the certificates interface is available, this default handler
+    updates on-disk certificates and switches on the TLS support.
+    """
+    tls = reactive.endpoint_from_flag('certificates.available')
+    with charm.provide_charm_instance() as instance:
+        instance.configure_tls(tls)
+        # make charms.openstack required relation check happy
+        reactive.set_flag('certificates.connected')
+        for flag in 'certificates.ca.changed', 'certificates.certs.changed':
+            if reactive.is_flag_set(flag):
+                reactive.clear_flag(flag)
+    if reactive.is_flag_set('leadership.is_leader'):
+        db_router_respond()
+    instance.assess_status()

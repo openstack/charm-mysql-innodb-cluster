@@ -205,6 +205,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.unit1 = mock.MagicMock(name="FakeUnit")
         self.unit1.received.__getitem__.side_effect = self._fake_data
         self.cluster = mock.MagicMock()
+        self.certificates = mock.MagicMock()
         self.cluster.all_joined_units = [self.unit1]
 
         # Generic interface
@@ -602,6 +603,12 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         for rel in self.interface.relations.values():
             self.interface.all_joined_units.extend(rel.joined_units)
 
+        self.patch_object(
+            mysql_innodb_cluster.reactive, "endpoint_from_flag",
+            return_value=self.certificates)
+        self.certificates.root_ca_cert = "Certificate Authority"
+        self.certificates.root_ca_chain = "Intermediate Chain Certificate"
+
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_allowed_units = mock.MagicMock()
         midbc.get_allowed_units.side_effect = self._fake_get_allowed_units
@@ -643,25 +650,25 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.keystone_shared_db.relation_id),
                 prefix=None,
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.nova_shared_db.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
                 prefix="nova",
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.nova_shared_db.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
                 prefix="novaapi",
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.nova_shared_db.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nova_shared_db.relation_id),
                 prefix="novacell0",
-                wait_timeout=_wait_timeout)]
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca)]
         self.interface.set_db_connection_info.assert_has_calls(
             _set_calls, any_order=True)
 
@@ -684,6 +691,11 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.interface.all_joined_units = []
         for rel in self.interface.relations.values():
             self.interface.all_joined_units.extend(rel.joined_units)
+        self.patch_object(
+            mysql_innodb_cluster.reactive, "endpoint_from_flag",
+            return_value=self.certificates)
+        self.certificates.root_ca_cert = "Certificate Authority"
+        self.certificates.root_ca_chain = "Intermediate Chain Certificate"
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_allowed_units = mock.MagicMock()
@@ -732,38 +744,38 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.kmr_db_router.relation_id),
                 prefix=self.mock_unprefixed,
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.kmr_db_router.relation_id, _addr, "mysqlrouteruser-pwd",
                 allowed_units=" ".join(
                     [x.unit_name for x in self.kmr_db_router.joined_units]),
                 prefix="mysqlrouter",
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
 
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nmr_db_router.relation_id),
                 prefix="nova",
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nmr_db_router.relation_id),
                 prefix="novaapi",
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "nova-pwd",
                 allowed_units=self._fake_get_allowed_units(
                     None, None, self.nmr_db_router.relation_id),
                 prefix="novacell0",
-                wait_timeout=_wait_timeout),
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca),
             mock.call(
                 self.nmr_db_router.relation_id, _addr, "mysqlrouteruser-pwd",
                 allowed_units=" ".join(
                     [x.unit_name for x in self.nmr_db_router.joined_units]),
                 prefix="mysqlrouter",
-                wait_timeout=_wait_timeout)]
+                wait_timeout=_wait_timeout, ssl_ca=midbc.ssl_ca)]
         self.interface.set_db_connection_info.assert_has_calls(
             _set_calls, any_order=True)
 

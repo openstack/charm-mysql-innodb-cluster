@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import datetime
 import json
 import os
@@ -20,6 +21,7 @@ import tenacity
 import tempfile
 import uuid
 
+import charms.coordinator as coordinator
 import charms_openstack.charm
 import charms_openstack.adapters
 
@@ -28,8 +30,11 @@ import charms.reactive as reactive
 
 import charmhelpers.core as ch_core
 import charmhelpers.contrib.network.ip as ch_net_ip
+import charmhelpers.contrib.openstack.cert_utils as cert_utils
 
 import charmhelpers.contrib.database.mysql as mysql
+
+from charms_openstack.charm import utils as chos_utils
 
 
 MYSQLD_CNF = "/etc/mysql/mysql.conf.d/mysqld.cnf"
@@ -152,6 +157,11 @@ def binlog_expire_logs_seconds_adapter(cls):
     return 60 * 60 * 24 * days
 
 
+@charms_openstack.adapters.config_property
+def tls_enabled(cls):
+    return reactive.is_flag_set("tls.enabled")
+
+
 class CannotConnectToMySQL(Exception):
     """Exception when attempting to connect to a MySQL server.
     """
@@ -160,8 +170,8 @@ class CannotConnectToMySQL(Exception):
 
 class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     """Charm class for the MySQLInnoDBCluster charm."""
-    name = "mysql"
-    release = "stein"
+    name = "mysql-innodb-cluster"
+    release = "train"
     # TODO: Current versions of the mysql-shell snap require libpython2.7
     # This will not be available in 20.04
     # Fix the mysql-shell snap and remove the package here
@@ -292,7 +302,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: Cluster username
         :rtype: str
         """
-        return reactive.get_endpoint_from_flag("cluster.available")
+        return reactive.endpoint_from_flag("cluster.available")
 
     @property
     def shared_db_address(self):
@@ -321,6 +331,24 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: str
         """
         return self.options.db_router_address
+
+    @property
+    def ssl_ca(self):
+        """Return the SSL Certificate Authority
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Cluster username
+        :rtype: str
+        """
+        _certificates = (
+            reactive.endpoint_from_flag("certificates.available"))
+        if (_certificates and _certificates.root_ca_cert and
+                _certificates.root_ca_chain):
+            _cert_chain = (
+                _certificates.root_ca_cert + os.linesep +
+                _certificates.root_ca_chain)
+            return base64.b64encode(_cert_chain.encode("UTF-8")).decode()
 
     # TODO: Generalize and move to mysql charmhelpers
     def _get_password(self, key):
@@ -1082,7 +1110,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     password,
                     allowed_units=allowed_units,
                     prefix=prefix,
-                    wait_timeout=self.options.wait_timeout)
+                    wait_timeout=self.options.wait_timeout,
+                    ssl_ca=self.ssl_ca)
 
         # Validate that all attempts succeeded.
         # i.e. We were not attempting writes during a topology change.
@@ -1328,7 +1357,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 username=username, password=password, address=address):
             raise CannotConnectToMySQL("Unable to connect to MySQL")
 
-    @tenacity.retry(wait=tenacity.wait_fixed(10),
+    @tenacity.retry(wait=tenacity.wait_fixed(6),
                     reraise=True,
                     stop=tenacity.stop_after_attempt(5))
     def wait_until_cluster_available(self):
@@ -1475,6 +1504,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             restore.communicate(input=_sql.read())
         restore.wait()
 
+    @property
     def cluster_peer_addresses(self):
         """Cluster peer addresses
 
@@ -1485,4 +1515,59 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         """
         ep = reactive.endpoint_from_flag("cluster.available")
         return [unit.received["cluster-address"]
-                for unit in ep.all_joined_units]
+                for unit in ep.all_joined_units
+                if unit.received["cluster-address"]]
+
+    def configure_tls(self, certificates_interface=None):
+        """Configure TLS certificates and keys
+
+        :param certificates_interface: certificates relation endpoint
+        :type certificates_interface: TlsRequires(Endpoint) object
+        """
+        # this takes care of writing out the CA certificate
+        tls_objects = super().configure_tls(
+            certificates_interface=certificates_interface)
+        with chos_utils.is_data_changed(
+                'configure_tls.tls_objects', tls_objects) as changed:
+            if tls_objects:
+                for tls_object in tls_objects:
+                    reactive.set_flag('tls.requested')
+                    path = os.path.join('/etc/mysql/tls/', self.name)
+                    self.configure_cert(
+                        path,
+                        tls_object['cert'],
+                        tls_object['key'],
+                        cn=tls_object['cn'])
+                cert_utils.create_ip_cert_links(path)
+                if changed:
+                    reactive.clear_flag('tls.requested')
+                    reactive.set_flag('tls.enabled')
+                    if ch_core.hookenv.is_leader():
+                        self.render_all_configs()
+                    else:
+                        # Mysql InnodB Cluster uses coordinator for rolling
+                        # restarts. Request a restart.
+                        coordinator.acquire('config-changed-restart')
+
+            else:
+                reactive.clear_flag('tls.enabled')
+
+    def get_certificate_requests(self):
+        """Generate a certificatee requests based on the network configuration
+
+        """
+        req = cert_utils.CertRequest(json_encode=False)
+        req.add_hostname_cn()
+        addresses = [
+            self.db_router_address,
+            self.shared_db_address,
+            self.cluster_address]
+        # Add os-hostname entries
+        if self.options.os_db_router_hostname:
+            req.add_entry(
+                "db-router",
+                self.options.os_db_router_hostname,
+                addresses)
+        else:
+            req.add_hostname_cn_ip(addresses)
+        return req.get_request().get("cert_requests", {})

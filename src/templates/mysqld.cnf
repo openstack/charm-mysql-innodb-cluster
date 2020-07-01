@@ -131,3 +131,11 @@ innodb_change_buffering = {{ options.innodb_change_buffering_adapter }}
 {% if options.innodb_io_capacity -%}
 innodb_io_capacity = {{ options.innodb_io_capacity }}
 {% endif %}
+
+{% if options.tls_enabled -%}
+#tls_version=TLSv1.2,TLSv1.3
+ssl_ca=/etc/ssl/certs/ca-certificates.crt
+ssl_cert=/etc/mysql/tls/{{ options.charm_instance.name }}/cert_{{ options.db_router_address }}
+ssl_key=/etc/mysql/tls/{{ options.charm_instance.name }}/key_{{ options.db_router_address }}
+#require-secure-transport = ON
+{% endif %}

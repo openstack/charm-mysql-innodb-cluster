@@ -1,4 +1,3 @@
-jinja2
 mysqlclient
 psutil
 tenacity
