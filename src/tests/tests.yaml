@@ -2,7 +2,7 @@ charm_name: mysql-innodb-cluster
 configure:
 - zaza.openstack.charm_tests.vault.setup.auto_initialize
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-- focal_full_model:
+- full_model:
     - zaza.openstack.charm_tests.vault.setup.auto_initialize
     - zaza.openstack.charm_tests.glance.setup.add_lts_image
     - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
@@ -15,7 +15,7 @@ configure:
 tests:
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
-- focal_full_model:
+- full_model:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 - scale_in_out:
@@ -23,15 +23,17 @@ tests:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterScaleTest
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 dev_bundles:
+- scale_in_out: groovy
+- full_model: groovy-full-ha
 gate_bundles:
 - scale_in_out: focal
-- focal_full_model: focal-full-ha
+- full_model: focal-full-ha
 smoke_bundles:
 - focal
 tests_options:
   force_deploy:
-   - focal
-   - focal-full-ha
+   - groovy
+   - groovy-full-ha
 target_deploy_status:
   neutron-api-plugin-ovn:
     workload-status: waiting
