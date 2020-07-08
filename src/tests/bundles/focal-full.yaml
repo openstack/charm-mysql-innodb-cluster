@@ -1,5 +1,5 @@
 variables:
-  openstack-origin: &openstack-origin distro
+  openstack-origin: &openstack-origin distro-proposed
 
 series: &series focal
 
@@ -131,6 +131,8 @@ relations:
     - nova-cloud-controller:certificates
   - - vault:certificates
     - placement:certificates
+  - - vault:certificates
+    - mysql-innodb-cluster:certificates
   - - memcached:cache
     - nova-cloud-controller:memcache
   - - keystone:shared-db
