@@ -612,6 +612,13 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_allowed_units = mock.MagicMock()
         midbc.get_allowed_units.side_effect = self._fake_get_allowed_units
+        _db_helper = mock.MagicMock()
+        midbc.get_db_helper = mock.MagicMock()
+        midbc.get_db_helper.return_value = _db_helper
+        _rw_db_helper = mock.MagicMock()
+        midbc.get_cluster_rw_db_helper = mock.MagicMock()
+        midbc.get_cluster_rw_db_helper.return_value = _rw_db_helper
+
         _wait_timeout = 60
         midbc.options.wait_timeout = _wait_timeout
 
@@ -633,14 +640,22 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.configure_db_router.assert_not_called()
 
         _configure_db_calls = [
-            mock.call(self.keystone_unit5_ip, "keystone", "keystone"),
-            mock.call(self.keystone_unit7_ip, "keystone", "keystone"),
-            mock.call(self.nova_unit5_ip, "nova", "nova"),
-            mock.call(self.nova_unit5_ip, "nova_api", "nova"),
-            mock.call(self.nova_unit5_ip, "nova_cell0", "nova"),
-            mock.call(self.nova_unit7_ip, "nova", "nova"),
-            mock.call(self.nova_unit7_ip, "nova_api", "nova"),
-            mock.call(self.nova_unit7_ip, "nova_cell0", "nova")]
+            mock.call(self.keystone_unit5_ip, "keystone", "keystone",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.keystone_unit7_ip, "keystone", "keystone",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nova_unit5_ip, "nova", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nova_unit5_ip, "nova_api", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nova_unit5_ip, "nova_cell0", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nova_unit7_ip, "nova", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nova_unit7_ip, "nova_api", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nova_unit7_ip, "nova_cell0", "nova",
+                      rw_helper=_rw_db_helper)]
         midbc.configure_db_for_hosts.assert_has_calls(
             _configure_db_calls, any_order=True)
 
@@ -698,6 +713,12 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.certificates.root_ca_chain = "Intermediate Chain Certificate"
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        _db_helper = mock.MagicMock()
+        midbc.get_db_helper = mock.MagicMock()
+        midbc.get_db_helper.return_value = _db_helper
+        _rw_db_helper = mock.MagicMock()
+        midbc.get_cluster_rw_db_helper = mock.MagicMock()
+        midbc.get_cluster_rw_db_helper.return_value = _rw_db_helper
         midbc.get_allowed_units = mock.MagicMock()
         midbc.get_allowed_units.side_effect = self._fake_get_allowed_units
         midbc.configure_db_for_hosts = mock.MagicMock()
@@ -719,22 +740,34 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
 
         # Validate
         _conigure_db_router_calls = [
-            mock.call(self.kmr_unit5_ip, "mysqlrouteruser"),
-            mock.call(self.kmr_unit7_ip, "mysqlrouteruser"),
-            mock.call(self.nmr_unit5_ip, "mysqlrouteruser"),
-            mock.call(self.nmr_unit7_ip, "mysqlrouteruser")]
+            mock.call(self.kmr_unit5_ip, "mysqlrouteruser",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.kmr_unit7_ip, "mysqlrouteruser",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit5_ip, "mysqlrouteruser",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit7_ip, "mysqlrouteruser",
+                      rw_helper=_rw_db_helper)]
         midbc.configure_db_router.assert_has_calls(
             _conigure_db_router_calls, any_order=True)
 
         _configure_db_calls = [
-            mock.call(self.kmr_unit5_ip, "keystone", "keystone"),
-            mock.call(self.kmr_unit7_ip, "keystone", "keystone"),
-            mock.call(self.nmr_unit5_ip, "nova", "nova"),
-            mock.call(self.nmr_unit5_ip, "nova_api", "nova"),
-            mock.call(self.nmr_unit5_ip, "nova_cell0", "nova"),
-            mock.call(self.nmr_unit7_ip, "nova", "nova"),
-            mock.call(self.nmr_unit7_ip, "nova_api", "nova"),
-            mock.call(self.nmr_unit7_ip, "nova_cell0", "nova")]
+            mock.call(self.kmr_unit5_ip, "keystone", "keystone",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.kmr_unit7_ip, "keystone", "keystone",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit5_ip, "nova", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit5_ip, "nova_api", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit5_ip, "nova_cell0", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit7_ip, "nova", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit7_ip, "nova_api", "nova",
+                      rw_helper=_rw_db_helper),
+            mock.call(self.nmr_unit7_ip, "nova_cell0", "nova",
+                      rw_helper=_rw_db_helper)]
         midbc.configure_db_for_hosts.assert_has_calls(
             _configure_db_calls, any_order=True)
 

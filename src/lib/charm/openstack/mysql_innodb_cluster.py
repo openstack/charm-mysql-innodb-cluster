@@ -1028,7 +1028,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 ["mode"])
 
     # TODO: Generalize and move to mysql charmhelpers
-    def get_allowed_units(self, database, username, relation_id):
+    def get_allowed_units(self, database, username, relation_id,
+                          db_helper=None):
         """Get Allowed Units.
 
         Call MySQL8Helper.get_allowed_units and return space delimited list of
@@ -1045,7 +1046,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: Space delimited list of unit names
         :rtype: str
         """
-        db_helper = self.get_db_helper()
+        if not db_helper:
+            db_helper = self.get_db_helper()
         allowed_units = db_helper.get_allowed_units(
             database, username, relation_id=relation_id)
         allowed_units = sorted(
@@ -1068,13 +1070,13 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: Bool
         """
         completed = []
+        db_host = ch_net_ip.get_relation_ip(interface.endpoint_name)
+        db_helper = self.get_db_helper()
+        rw_helper = self.get_cluster_rw_db_helper()
         for unit in interface.all_joined_units:
-
             db_data = mysql.get_db_data(
                 dict(unit.received),
                 unprefixed=self._unprefixed)
-
-            db_host = ch_net_ip.get_relation_ip(interface.endpoint_name)
             mysqlrouterset = {'username', 'hostname'}
             singleset = {'database', 'username', 'hostname'}
 
@@ -1085,12 +1087,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     username = db_data[prefix]['username']
 
                     password = self.configure_db_for_hosts(
-                        hostname, database, username)
+                        hostname, database, username,
+                        rw_helper=rw_helper)
                     completed.append(password)
 
                     allowed_units = self.get_allowed_units(
                         database, username,
-                        unit.relation.relation_id)
+                        unit.relation.relation_id,
+                        db_helper=db_helper)
 
                     if prefix in self._unprefixed:
                         prefix = None
@@ -1099,7 +1103,10 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     hostname = db_data[prefix]['hostname']
                     username = db_data[prefix]['username']
 
-                    password = self.configure_db_router(hostname, username)
+                    password = self.configure_db_router(
+                        hostname,
+                        username,
+                        rw_helper=rw_helper)
                     completed.append(password)
                     allowed_units = " ".join(
                         [x.unit_name for x in unit.relation.joined_units])
@@ -1120,7 +1127,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         return False
 
     # TODO: Generalize and move to mysql charmhelpers
-    def configure_db_for_hosts(self, hosts, database, username):
+    def configure_db_for_hosts(self, hosts, database, username,
+                               rw_helper=None):
         """Configure database for user at host(s).
 
         Create and configure database and user with full access permissions
@@ -1135,6 +1143,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type database: str
         :param username: Username
         :type username: str
+        :param rw_helper: Instance of MySQL8Helper
+        :type rw_helper: charmhelpers.contrib.database.mysql.MySQL8Helper
         :side effect: Calls MySQL8Helper.configure_db
         :returns: Password for the DB user
         :rtype: str
@@ -1151,8 +1161,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 "Single hostname provided by relation: {}".format(hosts),
                 level="DEBUG")
             hosts = [hosts]
-
-        rw_helper = self.get_cluster_rw_db_helper()
+        if not rw_helper:
+            rw_helper = self.get_cluster_rw_db_helper()
         if not rw_helper:
             ch_core.hookenv.log(
                 "No connection to the cluster primary RW node "
@@ -1165,7 +1175,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         return password
 
-    def configure_db_router(self, hosts, username):
+    def configure_db_router(self, hosts, username, rw_helper=None):
         """Configure database for MySQL Router user at host(s).
 
         Create and configure MySQL Router user with mysql router specific
@@ -1178,6 +1188,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type hosts: Union[str, Json list]
         :param username: Username
         :type username: str
+        :param rw_helper: Instance of MySQL8Helper
+        :type rw_helper: charmhelpers.contrib.database.mysql.MySQL8Helper
         :side effect: Calls MySQL8Helper.configure_router
         :returns: Password for the DB user
         :rtype: str
@@ -1195,7 +1207,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 level="DEBUG")
             hosts = [hosts]
 
-        rw_helper = self.get_cluster_rw_db_helper()
+        if not rw_helper:
+            rw_helper = self.get_cluster_rw_db_helper()
         if not rw_helper:
             ch_core.hookenv.log(
                 "No connection to the cluster primary RW node "
