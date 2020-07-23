@@ -221,6 +221,9 @@ def config_changed():
             if reactive.is_flag_set('config.changed.auto-rejoin-tries'):
                 instance.set_cluster_option(
                     "autoRejoinTries", instance.options.auto_rejoin_tries)
+            if reactive.is_flag_set('config.changed.expel-timeout'):
+                instance.set_cluster_option(
+                    "expelTimeout", instance.options.expel_timeout)
     else:
         with charm.provide_charm_instance() as instance:
             try:

@@ -24,6 +24,19 @@ options:
     description: |
       The number of tries instances make to rejoin the cluster after being
       expelled.
+  expel-timeout:
+    type: int
+    default: 5
+    description: |
+      An integer value that specifies the period of time in seconds that cluster
+      members should wait for a non-responding member before expelling it from the
+      cluster. This value can be changed while Group Replication is running.
+      Setting this value to N will mean that a member will be expelled after N + 5 seconds
+      after the loss of connectivity.
+      See the MySQL documentation related to the group_replication_member_expel_timeout option
+      for more information.
+      https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-expel.html
+      https://dev.mysql.com/doc/refman/8.0/en/group-replication-options.html#sysvar_group_replication_member_expel_timeout
   innodb-buffer-pool-size:
     type: string
     default:

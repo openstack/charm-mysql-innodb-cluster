@@ -504,6 +504,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _addr = "10.10.40.40"
         _name = "jujuCluster"
         _tries = 500
+        _expel_timeout = 5
         self.get_relation_ip.return_value = _addr
         self.data = {"cluster-password": _pass}
         self.is_flag_set.side_effect = [False, True]
@@ -515,12 +516,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.options.cluster_name = _name
         midbc.options.auto_rejoin_tries = _tries
+        midbc.options.expel_timeout = _expel_timeout
         _script = (
             "shell.connect('{}:{}@{}')\n"
-            "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}'}})"
+            "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}', "
+            "'expelTimeout': '{}'}})"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
-                midbc.cluster_address, midbc.cluster_name, _tries))
+                midbc.cluster_address, midbc.cluster_name, _tries,
+                _expel_timeout))
 
         midbc.create_cluster()
         _is_flag_set_calls = [

@@ -603,10 +603,13 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         _script = (
             "shell.connect('{}:{}@{}')\n"
-            "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}'}})"
+            "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}', "
+            "'expelTimeout': '{}'}})"
             .format(
                 self.cluster_user, self.cluster_password, self.cluster_address,
-                self.options.cluster_name, self.options.auto_rejoin_tries))
+                self.options.cluster_name, self.options.auto_rejoin_tries,
+                self.options.expel_timeout
+            ))
         ch_core.hookenv.log("Creating cluster: {}."
                             .format(self.options.cluster_name), "INFO")
         try:
