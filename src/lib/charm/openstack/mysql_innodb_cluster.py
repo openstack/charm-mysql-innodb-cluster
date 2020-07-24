@@ -341,6 +341,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: Cluster username
         :rtype: str
         """
+        if self.options.ssl_ca:
+            return self.options.ssl_ca
         _certificates = (
             reactive.endpoint_from_flag("certificates.available"))
         if (_certificates and _certificates.root_ca_cert and
@@ -419,6 +421,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         # Need to configure source first
         self.configure_source()
         super().install()
+
+        # Check for TLS config
+        self.configure_tls()
 
         # Render mysqld.cnf and cause a restart
         self.render_all_configs()
@@ -1538,8 +1543,33 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         """Configure TLS certificates and keys
 
         :param certificates_interface: certificates relation endpoint
-        :type certificates_interface: TlsRequires(Endpoint) object
+        :type certificates_interface: Union[None, Endpoint]
         """
+        # We may have a relation but not been called with
+        # certificates_interface set
+        if not certificates_interface:
+            certificates_interface = (
+                reactive.endpoint_from_flag('certificates.available'))
+        ch_core.hookenv.log("Configuring TLS with certificates interface={}"
+                            .format(certificates_interface), "DEBUG")
+        path = os.path.join('/etc/mysql/tls/', self.name)
+        if (self.config_defined_ssl_cert and
+                self.config_defined_ssl_key):
+            ch_core.hookenv.log("Configuring config based SSL", "DEBUG")
+            if self.config_defined_ssl_ca:
+                ch_core.hookenv.log("Configurationg config based SSL", "DEBUG")
+                self.configure_ca(self.config_defined_ssl_ca.decode("UTF-8"))
+            self.configure_cert(
+                path,
+                self.config_defined_ssl_cert.decode("UTF-8"),
+                self.config_defined_ssl_key.decode("UTF-8"),
+                cn=self.db_router_address)
+            reactive.set_flag('tls.enabled')
+            return
+        elif not certificates_interface:
+            reactive.clear_flag('tls.enabled')
+            return
+
         # this takes care of writing out the CA certificate
         tls_objects = super().configure_tls(
             certificates_interface=certificates_interface)
@@ -1548,7 +1578,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             if tls_objects:
                 for tls_object in tls_objects:
                     reactive.set_flag('tls.requested')
-                    path = os.path.join('/etc/mysql/tls/', self.name)
                     self.configure_cert(
                         path,
                         tls_object['cert'],

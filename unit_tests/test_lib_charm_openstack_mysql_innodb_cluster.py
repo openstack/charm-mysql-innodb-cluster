@@ -390,10 +390,12 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.configure_mysql_password = mock.MagicMock()
         midbc.configure_source = mock.MagicMock()
         midbc.render_all_configs = mock.MagicMock()
+        midbc.configure_tls = mock.MagicMock()
         midbc.install()
         self.super_install.assert_called_once()
         midbc.configure_mysql_password.assert_called_once()
         midbc.configure_source.assert_called_once()
+        midbc.configure_tls.assert_called_once()
         midbc.render_all_configs.assert_called_once()
 
     def test_get_db_helper(self):
@@ -625,6 +627,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
 
         _wait_timeout = 60
         midbc.options.wait_timeout = _wait_timeout
+        midbc.options.ssl_ca = None
 
         midbc.configure_db_for_hosts = mock.MagicMock()
         midbc.configure_db_router = mock.MagicMock()
@@ -730,6 +733,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.configure_db_router = mock.MagicMock()
         _wait_timeout = 60
         midbc.options.wait_timeout = _wait_timeout
+        midbc.options.ssl_ca = None
 
         # Execute the function under test expect incomplete
         midbc.configure_db_router.side_effect = [

@@ -216,6 +216,7 @@ def signal_clustered():
 def config_changed():
     if reactive.is_flag_set('leadership.is_leader'):
         with charm.provide_charm_instance() as instance:
+            instance.configure_tls()
             instance.render_all_configs()
             instance.wait_until_cluster_available()
             if reactive.is_flag_set('config.changed.auto-rejoin-tries'):
@@ -240,6 +241,7 @@ def config_changed_restart():
     with charm.provide_charm_instance() as instance:
         ch_core.hookenv.status_set(
             'maintenance', 'Rolling config changed and restart.')
+        instance.configure_tls()
         instance.render_all_configs()
 
 
