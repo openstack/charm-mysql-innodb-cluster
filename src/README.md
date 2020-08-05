@@ -19,23 +19,6 @@ therefore does not deploy on a single unit.
 See file `config.yaml` for the full list of configuration options, along with
 their descriptions and default values.
 
-### TLS
-
-TLS communication between MySQL InnoDB Cluster and its cloud clients is
-supported.
-
-Due to the circular dependency between the vault and mysql-innodb-cluster
-applications, the enablement of this feature can only be done
-post-deployment (once vault has been initialised and has a root Certificate
-Authority).
-
-Enable database TLS communication with this relation:
-
-.. code-block:: none
-
-   juju add-relation mysql-innodb-cluster:certificates vault:certificates
-
-
 ## Deployment
 
 To deploy a three-node cluster:
@@ -61,6 +44,19 @@ Nodes can be added to the cluster as Read Only nodes:
 
 See [OpenStack high availability][cdg-app-ha-mysql8] in the [OpenStack Charms
 Deployment Guide][cdg] for more deploy instructions.
+
+## TLS
+
+TLS communication between MySQL InnoDB Cluster and its cloud clients is
+supported.
+
+Due to the circular dependency between the vault and mysql-innodb-cluster
+applications, the enablement of this feature can only be done post-deployment
+(once vault has been initialised and has a root Certificate Authority).
+
+Enable database TLS communication with this relation:
+
+    juju add-relation mysql-innodb-cluster:certificates vault:certificates
 
 ## Actions
 
