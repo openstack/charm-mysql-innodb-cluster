@@ -194,6 +194,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     # For caching cluster status information
     _cached_cluster_status = None
 
+    _read_only_error = 1290
+    _user_create_failed = 1396
+
     @property
     def mysqlsh_bin(self):
         """Determine binary path for MySQL Shell.
@@ -488,8 +491,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :param cluster_password: Cluster user's password
         :type cluster_password: str
         :side effect: Executes SQL to create DB user
-        :returns: This function is called for its side effect
-        :rtype: None
+        :returns: True if successful, False if there are failures
+        :rtype: Boolean
         """
         SQL_CLUSTER_USER_CREATE = (
             "CREATE USER '{user}'@'{host}' "
@@ -517,22 +520,34 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     host=address,
                     password=cluster_password)
                 )
-            except mysql.MySQLdb._exceptions.OperationalError:
-                ch_core.hookenv.log("User {} already exists."
-                                    .format(cluster_user), "WARNING")
+                m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
+                    permissions="ALL PRIVILEGES",
+                    user=cluster_user,
+                    host=address)
+                )
+                m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
+                    permissions="GRANT OPTION",
+                    user=cluster_user,
+                    host=address)
+                )
 
-            m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
-                permissions="ALL PRIVILEGES",
-                user=cluster_user,
-                host=address)
-            )
-            m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
-                permissions="GRANT OPTION",
-                user=cluster_user,
-                host=address)
-            )
-
-            m_helper.execute("flush privileges")
+                m_helper.execute("flush privileges")
+            except mysql.MySQLdb._exceptions.OperationalError as e:
+                if e.args[0] == self._read_only_error:
+                    ch_core.hookenv.log(
+                        "Attempted to write to the RO node: {} in "
+                        "configure_db_for_hosts. Skipping."
+                        .format(m_helper.connection.get_host_info()),
+                        "WARNING")
+                    return False
+                if e.args[0] == self._user_create_failed:
+                    ch_core.hookenv.log(
+                        "User {} exists."
+                        .format(cluster_user), "WARNING")
+                    continue
+                else:
+                    raise
+        return True
 
     def configure_instance(self, address):
         """Configure MySQL instance for clustering.
@@ -874,10 +889,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 "create cluster user for {}.".format(address))
         # Make sure we have the user in the DB
         for unit in cluster.all_joined_units:
-            self.create_cluster_user(
-                unit.received['cluster-address'],
-                unit.received['cluster-user'],
-                unit.received['cluster-password'])
+            if not self.create_cluster_user(
+                    unit.received['cluster-address'],
+                    unit.received['cluster-user'],
+                    unit.received['cluster-password']):
+                raise Exception(
+                    "Not all cluster users created.")
         self.configure_instance(address)
         self.add_instance_to_cluster(address)
 
@@ -1119,17 +1136,20 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     allowed_units = " ".join(
                         [x.unit_name for x in unit.relation.joined_units])
 
-                interface.set_db_connection_info(
-                    unit.relation.relation_id,
-                    db_host,
-                    password,
-                    allowed_units=allowed_units,
-                    prefix=prefix,
-                    wait_timeout=self.options.wait_timeout,
-                    ssl_ca=self.ssl_ca)
+                # Only set relation data if db/user create was successful
+                if password:
+                    interface.set_db_connection_info(
+                        unit.relation.relation_id,
+                        db_host,
+                        password,
+                        allowed_units=allowed_units,
+                        prefix=prefix,
+                        wait_timeout=self.options.wait_timeout,
+                        ssl_ca=self.ssl_ca)
 
         # Validate that all attempts succeeded.
-        # i.e. We were not attempting writes during a topology change.
+        # i.e. We were not attempting writes during a topology change,
+        # we are not attempting to write to a read only node.
         if all(completed):
             return True
         return False
@@ -1179,7 +1199,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             return
 
         for host in hosts:
-            password = rw_helper.configure_db(host, database, username)
+            try:
+                password = rw_helper.configure_db(host, database, username)
+            except mysql.MySQLdb._exceptions.OperationalError as e:
+                if e.args[0] == self._read_only_error:
+                    password = None
+                    ch_core.hookenv.log(
+                        "Attempted to write to the RO node: {} in "
+                        "configure_db_for_hosts. Skipping."
+                        .format(rw_helper.connection.get_host_info()),
+                        "WARNING")
+                else:
+                    raise
 
         return password
 
@@ -1225,7 +1256,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             return
 
         for host in hosts:
-            password = rw_helper.configure_router(host, username)
+            try:
+                password = rw_helper.configure_router(host, username)
+            except mysql.MySQLdb._exceptions.OperationalError as e:
+                if e.args[0] == self._read_only_error:
+                    password = None
+                    ch_core.hookenv.log(
+                        "Attempted to write to the RO node: {} in "
+                        "configure_db_router. Skipping."
+                        .format(rw_helper.connection.get_host_info()),
+                        "WARNING")
+                else:
+                    raise
 
         return password
 

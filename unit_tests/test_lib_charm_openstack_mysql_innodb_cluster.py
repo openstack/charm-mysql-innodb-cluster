@@ -21,6 +21,13 @@ import charms_openstack.test_utils as test_utils
 import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster
 
 
+class FakeException(Exception):
+
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
+
+
 class TestMySQLInnoDBClusterProperties(test_utils.PatchHelper):
 
     def setUp(self):
@@ -453,15 +460,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _localhost = "localhost"
         _helper.reset_mock()
         self.get_relation_ip.return_value = _addr
-        midbc.create_cluster_user(_addr, _user, _pass)
+        midbc.create_cluster_user(_localhost, _user, _pass)
         _calls = [
-            mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
-                      .format(_user, _addr, _pass)),
-            mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}'"
-                      .format(_user, _addr)),
-            mock.call("GRANT GRANT OPTION ON *.* TO '{}'@'{}'"
-                      .format(_user, _addr)),
-            mock.call('flush privileges'),
             mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
                       .format(_user, _localhost, _pass)),
             mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}'"
@@ -471,6 +471,30 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call("flush privileges")]
         _helper.execute.assert_has_calls(
             _calls, any_order=True)
+
+        # Exception handling
+        self.patch_object(
+            mysql_innodb_cluster.mysql.MySQLdb, "_exceptions")
+        self._exceptions.OperationalError = FakeException
+
+        # User Exists
+        _helper.reset_mock()
+        _helper.execute.side_effect = (
+            self._exceptions.OperationalError(1396, "User exists"))
+        self.assertTrue(midbc.create_cluster_user(_localhost, _user, _pass))
+
+        # Read only node
+        _helper.reset_mock()
+        _helper.execute.side_effect = (
+            self._exceptions.OperationalError(1290, "Super read only"))
+        self.assertFalse(midbc.create_cluster_user(_localhost, _user, _pass))
+
+        # Unhandled Exception
+        _helper.reset_mock()
+        _helper.execute.side_effect = (
+            self._exceptions.OperationalError(99999, "BROKEN"))
+        with self.assertRaises(FakeException):
+            midbc.create_cluster_user(_localhost, _user, _pass)
 
     def test_configure_instance(self):
         _pass = "clusterpass"
@@ -694,6 +718,18 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.interface.set_db_connection_info.assert_has_calls(
             _set_calls, any_order=True)
 
+        # DB/User create is unsuccessful
+        midbc.configure_db_for_hosts.reset_mock()
+        midbc.configure_db_for_hosts.side_effect = None
+        midbc.configure_db_for_hosts.return_value = None
+        midbc.configure_db_router.side_effect = None
+        midbc.configure_db_router.return_value = None
+
+        # Execute the function under test expect incomplete
+        self.interface.set_db_connection_info.reset_mock()
+        self.assertFalse(midbc.create_databases_and_users(self.interface))
+        self.interface.set_db_connection_info.assert_not_called()
+
     def test_create_databases_and_users_db_router(self):
         # The test setup is a bit convoluted and requires mimicking reactive,
         # however, this is the heart of the charm and therefore deserves to
@@ -820,6 +856,18 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.interface.set_db_connection_info.assert_has_calls(
             _set_calls, any_order=True)
 
+        # DB/User create is unsuccessful
+        midbc.configure_db_router.reset_mock()
+        midbc.configure_db_for_hosts.side_effect = None
+        midbc.configure_db_for_hosts.return_value = None
+        midbc.configure_db_router.side_effect = None
+        midbc.configure_db_router.return_value = None
+
+        # Execute the function under test expect incomplete
+        self.interface.set_db_connection_info.reset_mock()
+        self.assertFalse(midbc.create_databases_and_users(self.interface))
+        self.interface.set_db_connection_info.assert_not_called()
+
     def test_configure_db_for_hosts(self):
         _db = "db"
         _user = "user"
@@ -857,6 +905,26 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper.configure_db.assert_has_calls(
             _calls, any_order=True)
 
+        # Exception handling
+        self.patch_object(
+            mysql_innodb_cluster.mysql.MySQLdb, "_exceptions")
+        self._exceptions.OperationalError = FakeException
+
+        # Super read only
+        _helper.reset_mock()
+        _helper.configure_db.side_effect = (
+            self._exceptions.OperationalError(1290, "Super REad only"))
+        self.assertEqual(
+            None,
+            midbc.configure_db_for_hosts(_json_addrs, _db, _user))
+
+        # Unhandled Exception
+        _helper.reset_mock()
+        _helper.configure_db.side_effect = (
+            self._exceptions.OperationalError(999, "BROKEN"))
+        with self.assertRaises(FakeException):
+            midbc.configure_db_for_hosts(_json_addrs, _db, _user)
+
     def test_configure_db_router(self):
         _user = "user"
         _addr = "10.10.90.90"
@@ -892,6 +960,26 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             midbc.configure_db_router(_json_addrs, _user))
         _helper.configure_router.assert_has_calls(
             _calls, any_order=True)
+
+        # Exception handling
+        self.patch_object(
+            mysql_innodb_cluster.mysql.MySQLdb, "_exceptions")
+        self._exceptions.OperationalError = FakeException
+
+        # Super read only
+        _helper.reset_mock()
+        _helper.configure_router.side_effect = (
+            self._exceptions.OperationalError(1290, "Super REad only"))
+        self.assertEqual(
+            None,
+            midbc.configure_db_router(_json_addrs, _user))
+
+        # Unhandled Exception
+        _helper.reset_mock()
+        _helper.configure_router.side_effect = (
+            self._exceptions.OperationalError(999, "BROKEN"))
+        with self.assertRaises(FakeException):
+            midbc.configure_db_router(_json_addrs, _user)
 
     def test_states_to_check(self):
         self.patch_object(
@@ -1445,6 +1533,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "cluster-password": _pass,
         }
         _create_cluster_user = mock.MagicMock()
+        _create_cluster_user.return_value = True
         midbc.create_cluster_user = _create_cluster_user
         _configure_instance = mock.MagicMock()
         midbc.configure_instance = _configure_instance
@@ -1456,3 +1545,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             _remote_addr, _user, _pass)
         _configure_instance.assert_called_once_with(_remote_addr)
         _add_instance_to_cluster.assert_called_once_with(_remote_addr)
+
+        # Not all users created
+        _create_cluster_user.return_value = False
+        with self.assertRaises(Exception):
+            midbc.configure_and_add_instance(address=_remote_addr)

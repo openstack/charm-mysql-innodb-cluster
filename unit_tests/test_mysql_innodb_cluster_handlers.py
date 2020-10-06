@@ -143,12 +143,19 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.set_flag.assert_called_once_with("charm.installed")
 
     def test_create_local_cluster_user(self):
+        self.midbc.create_cluster_user.return_value = True
         handlers.create_local_cluster_user()
         self.midbc.create_cluster_user.assert_called_once_with(
             self.midbc.cluster_address,
             self.midbc.cluster_user,
             self.midbc.cluster_password)
         self.set_flag.assert_called_once_with("local.cluster.user-created")
+
+        # Not successful
+        self.midbc.create_cluster_user.return_value = False
+        self.set_flag.reset_mock()
+        handlers.create_local_cluster_user()
+        self.set_flag.assert_not_called()
 
     def test_send_cluster_connection_info(self):
         self.endpoint_from_flag.return_value = self.cluster
@@ -165,6 +172,7 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.data = {"cluster-address": _addr,
                      "cluster-user": _user,
                      "cluster-password": _pass}
+        self.midbc.create_cluster_user.return_value = True
         self.endpoint_from_flag.return_value = self.cluster
         handlers.create_remote_cluster_user()
         self.midbc.create_cluster_user.assert_called_once_with(
@@ -172,6 +180,12 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.cluster.set_unit_configure_ready.assert_called_once()
         self.set_flag.assert_called_once_with(
             "local.cluster.all-users-created")
+
+        # Not successful
+        self.midbc.create_cluster_user.return_value = False
+        self.cluster.set_unit_configure_ready.reset_mock()
+        handlers.create_remote_cluster_user()
+        self.cluster.set_unit_configure_ready.assert_not_called()
 
     def test_initialize_cluster(self):
         handlers.initialize_cluster()

@@ -55,10 +55,13 @@ def create_local_cluster_user():
     """
     ch_core.hookenv.log("Creating local cluster user.", "DEBUG")
     with charm.provide_charm_instance() as instance:
-        instance.create_cluster_user(
-            instance.cluster_address,
-            instance.cluster_user,
-            instance.cluster_password)
+        if not instance.create_cluster_user(
+                instance.cluster_address,
+                instance.cluster_user,
+                instance.cluster_password):
+            ch_core.hookenv.log("Local cluster user was not created.",
+                                "WARNING")
+            return
         reactive.set_flag("local.cluster.user-created")
         instance.assess_status()
 
@@ -100,10 +103,12 @@ def create_remote_cluster_user():
     ch_core.hookenv.log("Creating remote users.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
-            instance.create_cluster_user(
-                unit.received['cluster-address'],
-                unit.received['cluster-user'],
-                unit.received['cluster-password'])
+            if not instance.create_cluster_user(
+                    unit.received['cluster-address'],
+                    unit.received['cluster-user'],
+                    unit.received['cluster-password']):
+                ch_core.hookenv.log("Not all remote users created.", "WARNING")
+                return
 
         # Optimize clustering by causing a cluster relation changed
         cluster.set_unit_configure_ready()
