@@ -571,8 +571,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                             .format(address), "INFO")
         _script = (
             "dba.configure_instance('{user}:{pw}@{addr}')\n"
-            "myshell = shell.connect('{user}:{pw}@{addr}')\n"
-            "myshell.run_sql('RESTART;')"
             .format(
                 user=self.cluster_user,
                 pw=self.cluster_password,
@@ -723,6 +721,47 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                             level="DEBUG")
         leadership.leader_set({"cluster-instance-clustered-{}"
                                .format(address): True})
+
+    def restart_instance(self, address):
+        """Restart instance
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :param address: Address of the MySQL instance to be configured
+        :type address: str
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        ch_core.hookenv.log("Restarting instance: {}.".format(address), "INFO")
+        _server_gone_away_error = "MySQL Error (2006)"
+        _script = (
+            "myshell = shell.connect('{user}:{pw}@{addr}')\n"
+            "myshell.run_sql('RESTART;')"
+            .format(
+                user=self.cluster_user,
+                pw=self.cluster_password,
+                addr=address))
+        try:
+            output = self.run_mysqlsh_script(_script)
+        except subprocess.CalledProcessError as e:
+            # If the shell reports the server went away we expect this
+            # when giving the RESTART command
+            if _server_gone_away_error not in e.stderr.decode("UTF-8"):
+                ch_core.hookenv.log(
+                    "Failed restarting instance {}: {}"
+                    .format(address, e.stderr.decode("UTF-8")), "ERROR")
+                raise e
+
+        # After configuration of the remote instance, the remote instance
+        # restarts mysql. We need to pause here for that to complete.
+        self.wait_until_connectable(username=self.cluster_user,
+                                    password=self.cluster_password,
+                                    address=address)
+
+        ch_core.hookenv.log("Instance restarted {}: {}"
+                            .format(address, output.decode("UTF-8")),
+                            level="DEBUG")
 
     def reboot_cluster_from_complete_outage(self):
         """Reboot cluster from complete outage.

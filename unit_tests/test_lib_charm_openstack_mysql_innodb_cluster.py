@@ -509,11 +509,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.run_mysqlsh_script = mock.MagicMock()
         _script = (
             "dba.configure_instance('{}:{}@{}')\n"
-            "myshell = shell.connect('{}:{}@{}')\n"
-            "myshell.run_sql('RESTART;')"
-            .format(
-                midbc.cluster_user, midbc.cluster_password, _addr,
-                midbc.cluster_user, midbc.cluster_password, _addr))
+            .format(midbc.cluster_user, midbc.cluster_password, _addr))
 
         midbc.configure_instance(_addr)
         self.is_flag_set.assert_called_once_with(
@@ -524,6 +520,28 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             password=midbc.cluster_password)
         self.leader_set.assert_called_once_with(
             {"cluster-instance-configured-{}".format(_addr): True})
+
+    def test_restart_instance(self):
+        _pass = "clusterpass"
+        _addr = "10.10.30.30"
+        self.data = {"cluster-password": _pass}
+        self.is_flag_set.return_value = False
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.side_effect = self._fake_data
+        midbc.wait_until_connectable = mock.MagicMock()
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        _script = (
+            "myshell = shell.connect('{}:{}@{}')\n"
+            "myshell.run_sql('RESTART;')"
+            .format(midbc.cluster_user, midbc.cluster_password, _addr))
+
+        midbc.restart_instance(_addr)
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+        midbc.wait_until_connectable.assert_called_once_with(
+            address=_addr, username=midbc.cluster_user,
+            password=midbc.cluster_password)
 
     def test_create_cluster(self):
         _pass = "clusterpass"
