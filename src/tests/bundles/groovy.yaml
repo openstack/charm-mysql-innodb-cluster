@@ -1,18 +1,18 @@
 series: groovy
 applications:
   keystone-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
   vault-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
   mysql-innodb-cluster:
     series: groovy
     charm: ../../../mysql-innodb-cluster
     num_units: 3
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: cs:~openstack-charmers/keystone
     num_units: 1
   vault:
-    charm: cs:~openstack-charmers-next/vault
+    charm: cs:~openstack-charmers/vault
     num_units: 1
 relations:
   - - vault:certificates
