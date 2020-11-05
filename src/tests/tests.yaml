@@ -22,10 +22,9 @@ tests:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterScaleTest
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
-dev_bundles:
+gate_bundles:
 - scale_in_out: groovy
 - full_model: groovy-full-ha
-gate_bundles:
 - scale_in_out: focal
 - full_model: focal-full-ha
 smoke_bundles:
