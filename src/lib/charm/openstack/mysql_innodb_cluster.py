@@ -1093,7 +1093,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
     # TODO: Generalize and move to mysql charmhelpers
     def get_allowed_units(self, database, username, relation_id,
-                          db_helper=None):
+                          db_helper=None, prefix=None):
         """Get Allowed Units.
 
         Call MySQL8Helper.get_allowed_units and return space delimited list of
@@ -1107,13 +1107,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type username: str
         :param relation_id: Relation ID
         :type relation_id: str
+        :param db_helper: DB Helper instnace
+        :type db_helper: MySQLDB8Helper instance
+        :param prefix: Prefix for db request
+        :type prefix: str
         :returns: Space delimited list of unit names
         :rtype: str
         """
         if not db_helper:
             db_helper = self.get_db_helper()
         allowed_units = db_helper.get_allowed_units(
-            database, username, relation_id=relation_id)
+            database, username, relation_id=relation_id, prefix=prefix)
         allowed_units = sorted(
             allowed_units, key=lambda a: int(a.split('/')[-1]))
         allowed_units = ' '.join(allowed_units)
@@ -1158,7 +1162,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     allowed_units = self.get_allowed_units(
                         database, username,
                         unit.relation.relation_id,
-                        db_helper=db_helper)
+                        db_helper=db_helper,
+                        prefix=prefix)
 
                     if prefix in self._unprefixed:
                         prefix = None
