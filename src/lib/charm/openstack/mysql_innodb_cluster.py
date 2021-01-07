@@ -1625,6 +1625,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 for unit in ep.all_joined_units
                 if unit.received["cluster-address"]]
 
+    @property
+    def mysql_server_bindings(self):
+        """MySQL Server Bindings
+
+        :param self: Self
+        :type self: MySQLInnoDBClusterCharm instance
+        :returns: Bindings where MySQL is listening
+        :rtype: list
+        """
+        return ["db-router", "cluster", "shared-db"]
+
     def configure_tls(self, certificates_interface=None):
         """Configure TLS certificates and keys
 
@@ -1669,7 +1680,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                         tls_object['cert'],
                         tls_object['key'],
                         cn=tls_object['cn'])
-                cert_utils.create_ip_cert_links(path)
+                cert_utils.create_ip_cert_links(
+                    path, bindings=self.mysql_server_bindings)
                 if changed:
                     reactive.clear_flag('tls.requested')
                     reactive.set_flag('tls.enabled')
@@ -1682,23 +1694,3 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
             else:
                 reactive.clear_flag('tls.enabled')
-
-    def get_certificate_requests(self):
-        """Generate a certificatee requests based on the network configuration
-
-        """
-        req = cert_utils.CertRequest(json_encode=False)
-        req.add_hostname_cn()
-        addresses = [
-            self.db_router_address,
-            self.shared_db_address,
-            self.cluster_address]
-        # Add os-hostname entries
-        if self.options.os_db_router_hostname:
-            req.add_entry(
-                "db-router",
-                self.options.os_db_router_hostname,
-                addresses)
-        else:
-            req.add_hostname_cn_ip(addresses)
-        return req.get_request().get("cert_requests", {})

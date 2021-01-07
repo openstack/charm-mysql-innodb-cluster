@@ -322,11 +322,14 @@ def request_certificates():
     with charm.provide_charm_instance() as instance:
         req = cert_utils.CertRequest(json_encode=False)
         req.add_hostname_cn()
-        # TODO: We actually want the db-router bindings for each node and not
-        # the cluster binding. However, deploys will be using 127.0.0.1 with
-        # mysql-router.
+        # Deploys will be using 127.0.0.1 with mysql-router, but still
+        # validate the certificate.
         # Add localhost for mysql-router connections
-        req.add_hostname_cn_ip(instance.cluster_peer_addresses + ["127.0.0.1"])
+        req.add_hostname_cn_ip([
+            instance.cluster_address,
+            instance.db_router_address,
+            instance.shared_db_address,
+            "127.0.0.1"])
         for cn, req in req.get_request().get('cert_requests', {}).items():
             tls.add_request_server_cert(cn, req['sans'])
         tls.request_server_certs()
