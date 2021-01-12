@@ -9,7 +9,6 @@ tags:
 subordinate: false
 series:
 - focal
-- eoan
 - groovy
 provides:
   shared-db:
