@@ -1137,6 +1137,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: True if successful
         :rtype: Bool
         """
+        if interface is None:
+            ch_core.hookenv.log(
+                "create_databases_and_users received a NoneType interface. "
+                "We may be in a departing hook. Skipping "
+                "create_databases_and_users", "WARNING")
+            return False
         completed = []
         db_host = ch_net_ip.get_relation_ip(interface.endpoint_name)
         db_helper = self.get_db_helper()
@@ -1179,6 +1185,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     completed.append(password)
                     allowed_units = " ".join(
                         [x.unit_name for x in unit.relation.joined_units])
+
+                if not self.ssl_ca:
+                    # Reset ssl_ca in case we previously had it set
+                    ch_core.hookenv.log(
+                        "Proactively resetting ssl_ca", "DEBUG")
+                    interface.relations[
+                        unit.relation.relation_id].to_publish_raw[
+                            "ssl_ca"] = None
 
                 # Only set relation data if db/user create was successful
                 if password:

@@ -338,7 +338,8 @@ def request_certificates():
 
 @reactive.when_any(
     'certificates.ca.changed',
-    'certificates.certs.changed')
+    'certificates.certs.changed',
+    'endpoint.certificates.departed')
 def configure_certificates():
     """When the certificates interface is available, this default handler
     updates on-disk certificates and switches on the TLS support.
