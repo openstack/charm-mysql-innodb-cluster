@@ -291,6 +291,7 @@ def db_router_respond():
 @reactive.when('endpoint.cluster.changed.unit-configure-ready')
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('leadership.is_leader')
+@reactive.when('cluster.available')
 def scale_out():
     """Handle scale-out adding new nodes to an existing cluster."""
 

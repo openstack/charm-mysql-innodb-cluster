@@ -66,7 +66,8 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                 "scale_out": (
                     "endpoint.cluster.changed.unit-configure-ready",
                     "leadership.set.cluster-instances-clustered",
-                    "leadership.is_leader",),
+                    "leadership.is_leader",
+                    "cluster.available",),
                 "request_certificates": (
                     "certificates.available",
                     "cluster.available",),
