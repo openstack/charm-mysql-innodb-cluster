@@ -1,0 +1,25 @@
+- project:
+    templates:
+      - charm-unit-jobs
+    check:
+      jobs:
+      - focal
+      - full_model-groovy-full-ha
+      - full_model-focal-full-ha
+    vars:
+      needs_charm_build: true
+      charm_build_name: mysql-innodb-cluster
+
+- job:
+    name: full_model-groovy-full-ha
+    parent: func-target
+    dependencies: &smoke-jobs
+        - focal
+    vars:
+      tox_extra_args: full_model:groovy-full-ha
+- job:
+    name: full_model-focal-full-ha
+    parent: func-target
+    dependencies: *smoke-jobs
+    vars:
+      tox_extra_args: full_model:focal-full-ha
