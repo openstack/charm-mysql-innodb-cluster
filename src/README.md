@@ -1,8 +1,8 @@
 # Overview
 
 The mysql-innodb-cluster charm deploys a [MySQL 8][upstream-mysql8] InnoDB
-clustered database. It is used in conjunction with the
-[mysql-router][mysql-router-charm] charm.
+clustered database (i.e. MySQL InnoDB Cluster). It is used in conjunction with
+the [mysql-router][mysql-router-charm] subordinate charm.
 
 > **Important**: The eoan series is the first series supported by the
   mysql-innodb-cluster and mysql-router charms. These charms replace the
@@ -11,39 +11,30 @@ clustered database. It is used in conjunction with the
 
 # Usage
 
-The charm is intended for deploying a cluster (minimum of three nodes) and
-therefore does not deploy on a single unit.
-
 ## Configuration
 
-See file `config.yaml` for the full list of configuration options, along with
-their descriptions and default values.
+See file `config.yaml` of the built charm (or see the charm in the [Charm
+Store][mysql-innodb-cluster-charm]) for the full list of configuration options,
+along with their descriptions and default values. See the [Juju
+documentation][juju-docs-config-apps] for details on configuring applications.
 
 ## Deployment
 
-To deploy a three-node cluster:
+MySQL 8 is natively HA and requires at least three database units, which are
+often containerised. To deploy a three-node cluster to new containers on
+machines '0', '1', and '2':
 
-    juju deploy -n 3 mysql-innodb-cluster
+    juju deploy -n 3 --to lxd:0,lxd:1,lxd:2 mysql-innodb-cluster
 
-The name of the cluster can be customized at deploy time:
+A cloud application is joined to the database via an instance of mysql-router.
+For a pre-existing keystone application:
 
-    juju deploy -n 3 mysql-innodb-cluster --config cluster-name myCluster
+    juju deploy mysql-router keystone-mysql-router
+    juju add-relation keystone-mysql-router:db-router mysql-innodb-cluster:db-router
+    juju add-relation keystone-mysql-router:shared-db keystone:shared-db
 
-Add a relation to a MySQL 8 Router (via the [db-router][db-router] endpoint):
-
-    juju add-relation mysql-innodb-cluster:db-router msyql-router:db-router
-
-A relation can be made to charms that use the [shared-db][shared-db] endpoint,
-however this should be considered deprecated:
-
-    juju add-relation mysql-innodb-cluster:shared-db keystone:shared-db
-
-Nodes can be added to the cluster as Read Only nodes:
-
-    juju add-unit mysql-innodb-cluster
-
-See [OpenStack high availability][cdg-app-ha-mysql8] in the [OpenStack Charms
-Deployment Guide][cdg] for more deploy instructions.
+See [Infrastructure high availability][cdg-app-ha-mysql8] in the [OpenStack
+Charms Deployment Guide][cdg] for more deploy information.
 
 ## TLS
 
@@ -62,8 +53,8 @@ Enable database TLS communication with this relation:
 
 This section lists Juju [actions][juju-docs-actions] supported by the charm.
 Actions allow specific operations to be performed on a per-unit basis. To
-display action descriptions run `juju actions mysql-innodb-cluster`. If the
-charm is not deployed then see file `actions.yaml`.
+display action descriptions run `juju actions --schema mysql-innodb-cluster`.
+If the charm is not deployed then see file `actions.yaml`.
 
 * `add-instance`
 * `cluster-rescan`
@@ -75,11 +66,17 @@ charm is not deployed then see file `actions.yaml`.
 * `restore-mysqldump`
 * `set-cluster-option`
 
+# Documentation
+
+The OpenStack Charms project maintains two documentation guides:
+
+* [OpenStack Charm Guide][cg]: for project information, including development
+  and support notes
+* [OpenStack Charms Deployment Guide][cdg]: for charm usage information
+
 # Bugs
 
 Please report bugs on [Launchpad][lp-bugs-charm-mysql-innodb-cluster].
-
-For general charm questions refer to the [OpenStack Charm Guide][cg].
 
 <!-- LINKS -->
 
@@ -88,8 +85,8 @@ For general charm questions refer to the [OpenStack Charm Guide][cg].
 [lp-bugs-charm-mysql-innodb-cluster]: https://bugs.launchpad.net/charm-mysql-innodb-cluster/+filebug
 [juju-docs-actions]: https://jaas.ai/docs/actions
 [percona-cluster-charm]: https://jaas.ai/percona-cluster
+[mysql-innodb-cluster-charm]: https://jaas.ai/mysql-innodb-cluster
 [mysql-router-charm]: https://jaas.ai/mysql-router
 [upstream-mysql8]: https://dev.mysql.com/doc/refman/8.0/en/mysql-innodb-cluster-userguide.html
-[db-router]: https://github.com/openstack-charmers/charm-interface-mysql-router
-[shared-db]: https://github.com/openstack/charm-interface-mysql-shared
 [cdg-app-ha-mysql8]: https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/latest/app-ha.html#mysql-8
+[juju-docs-config-apps]: https://juju.is/docs/configuring-applications
