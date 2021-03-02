@@ -10,6 +10,7 @@ subordinate: false
 series:
 - focal
 - groovy
+- hirsute
 provides:
   shared-db:
     interface: mysql-shared
