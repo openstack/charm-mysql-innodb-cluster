@@ -1,0 +1,29 @@
+series: hirsute
+applications:
+  keystone-mysql-router:
+    charm: cs:~openstack-charmers-next/mysql-router
+  vault-mysql-router:
+    charm: cs:~openstack-charmers-next/mysql-router
+  mysql-innodb-cluster:
+    series: groovy
+    charm: ../../../mysql-innodb-cluster
+    num_units: 3
+  keystone:
+    charm: cs:~openstack-charmers-next/keystone
+    num_units: 1
+  vault:
+    charm: cs:~openstack-charmers-next/vault
+    num_units: 1
+relations:
+  - - vault:certificates
+    - mysql-innodb-cluster:certificates
+  - - vault:certificates
+    - keystone:certificates
+  - - keystone:shared-db
+    - keystone-mysql-router:shared-db
+  - - vault:shared-db
+    - vault-mysql-router:shared-db
+  - - keystone-mysql-router:db-router
+    - mysql-innodb-cluster:db-router
+  - - vault-mysql-router:db-router
+    - mysql-innodb-cluster:db-router
