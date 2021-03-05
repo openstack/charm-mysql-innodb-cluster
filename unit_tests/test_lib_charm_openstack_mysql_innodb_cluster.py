@@ -1041,6 +1041,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "status_set")
 
         # All is well
+        self.is_flag_set.return_value = False
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.check_if_paused = _check
         midbc.check_interfaces = _check
@@ -1081,6 +1082,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc._assess_status()
         self.status_set.assert_called_once_with(
             "blocked", "MySQL InnoDB Cluster not healthy: Cluster not healthy")
+
+        # Departing
+        self.is_flag_set.return_value = True
+        self.status_set.reset_mock()
+        _check.reset_mock()
+        midbc._assess_status()
+        _check.assert_not_called()
+        self.status_set.assert_called_once_with(
+            "waiting", "This unit is departing. Shutting down.")
 
     def test_get_cluster_status(self):
         _local_addr = "10.10.50.50"

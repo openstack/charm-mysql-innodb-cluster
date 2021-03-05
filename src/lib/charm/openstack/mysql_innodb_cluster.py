@@ -1383,6 +1383,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
+        # This unit is departing the cluster
+        # This overrides everything else.
+        # Stop processing any other information.
+        if reactive.is_flag_set("local.cluster.unit.departing"):
+            ch_core.hookenv.status_set(
+                "waiting", "This unit is departing. Shutting down.")
+            return
+
         # Set version
         ch_core.hookenv.application_version_set(self.application_version)
         # Start with default checks
@@ -1708,3 +1716,29 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
             else:
                 reactive.clear_flag('tls.enabled')
+
+    def depart_instance(self):
+        """Depart from the cluster.
+
+        Cleanly stop MySQL giving the other nodes in the cluster notification
+        that this node is down. Disable MySQL so it does not accidently start.
+        Update the cluster relation indicating this node is no longer in the
+        cluster.
+
+        :side effect: Stops MySQL and unsets relation data
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        ch_core.hookenv.log("Stopping mysql ...", "WARNING")
+        ch_core.host.service_stop(self.default_service)
+        ch_core.hookenv.log("Disabling mysql ...", "WARNING")
+        subprocess.check_call(["update-rc.d", self.default_service, "disable"])
+
+        ch_core.hookenv.log("Unsetting cluster values ...", "WARNING")
+        if self.cluster_relation_endpoint:
+            self.cluster_relation_endpoint.peer_relation.to_publish_raw[
+                'cluster-address'] = None
+            self.cluster_relation_endpoint.peer_relation.to_publish_raw[
+                'cluster-user'] = None
+            self.cluster_relation_endpoint.peer_relation.to_publish_raw[
+                'cluster-password'] = None

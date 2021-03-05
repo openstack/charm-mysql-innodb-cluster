@@ -74,6 +74,10 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                 "configure_certificates": (
                     "certificates.ca.changed",
                     "certificates.certs.changed",),
+                "scale_in": (
+                    "endpoint.coordinator.departed",
+                    "endpoint.cluster.departed",),
+
             },
             "when_not": {
                 "leader_install": ("charm.installed",),
@@ -91,6 +95,24 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                 "signal_clustered": ("leadership.is_leader",),
                 "shared_db_respond": ("charm.paused",),
                 "db_router_respond": ("charm.paused",),
+                "scale_out": ("local.cluster.unit.departing",),
+                "request_certificates": ("local.cluster.unit.departing",),
+                "configure_certificates": ("local.cluster.unit.departing",),
+            },
+            "when_any": {
+                "scale_in": (
+                    "endpoint.coordinator.departed",
+                    "endpoint.cluster.departed",),
+                "configure_certificates": (
+                    "certificates.ca.changed",
+                    "certificates.certs.changed",
+                    "endpoint.certificates.departed",),
+            },
+            "when_none": {
+                "shared_db_respond": (
+                    "charm.paused", "local.cluster.unit.departing",),
+                "db_router_respond": (
+                    "charm.paused", "local.cluster.unit.departing",),
             },
         }
         # test that the hooks were registered via the

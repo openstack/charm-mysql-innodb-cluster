@@ -254,7 +254,8 @@ def config_changed_restart():
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('endpoint.shared-db.changed')
 @reactive.when('shared-db.available')
-@reactive.when_not('charm.paused')
+@reactive.when_none(
+    'charm.paused', 'local.cluster.unit.departing')
 def shared_db_respond():
     """Respond to Shared DB Requests.
     """
@@ -275,7 +276,8 @@ def shared_db_respond():
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('endpoint.db-router.changed')
 @reactive.when('db-router.available')
-@reactive.when_not('charm.paused')
+@reactive.when_none(
+    'charm.paused', 'local.cluster.unit.departing')
 def db_router_respond():
     """Respond to DB Router Requests.
     """
@@ -292,6 +294,7 @@ def db_router_respond():
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('leadership.is_leader')
 @reactive.when('cluster.available')
+@reactive.when_not('local.cluster.unit.departing')
 def scale_out():
     """Handle scale-out adding new nodes to an existing cluster."""
 
@@ -316,6 +319,7 @@ def scale_out():
 
 @reactive.when('certificates.available')
 @reactive.when('cluster.available')
+@reactive.when_not('local.cluster.unit.departing')
 def request_certificates():
     """When the certificates interface is available, request TLS certificates.
     """
@@ -341,6 +345,7 @@ def request_certificates():
     'certificates.ca.changed',
     'certificates.certs.changed',
     'endpoint.certificates.departed')
+@reactive.when_not('local.cluster.unit.departing')
 def configure_certificates():
     """When the certificates interface is available, this default handler
     updates on-disk certificates and switches on the TLS support.
@@ -356,3 +361,34 @@ def configure_certificates():
     if reactive.is_flag_set('leadership.is_leader'):
         db_router_respond()
     instance.assess_status()
+
+
+@reactive.when_any(
+    'endpoint.coordinator.departed',
+    'endpoint.cluster.departed',
+)
+def scale_in():
+    """ Handle scale in.
+
+    If this is the node departing, stop services and notify peers.
+    """
+    if not ch_core.hookenv.departing_unit():
+        ch_core.hookenv.log(
+            "In a cluster/coordinator departing hook but departing unit is "
+            "unset. Doing nothing."
+            "WARNING")
+        return
+
+    if ch_core.hookenv.local_unit() in ch_core.hookenv.departing_unit():
+        ch_core.hookenv.log(
+            "{} is this unit departing. Shutting down."
+            .format(ch_core.hookenv.departing_unit()),
+            "WARNING")
+        reactive.set_flag("local.cluster.unit.departing")
+        with charm.provide_charm_instance() as instance:
+            instance.depart_instance()
+    else:
+        ch_core.hookenv.log(
+            "{} is not this unit departing. Do nothing."
+            .format(ch_core.hookenv.departing_unit()),
+            "WARNING")
