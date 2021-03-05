@@ -847,7 +847,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: None
         """
         _primary = self.get_cluster_primary_address(nocache=True)
-        ch_core.hookenv.log("Rejoin instance: {}.".format(address))
+        ch_core.hookenv.log("Remove instance: {}.".format(address))
         _script = (
             "shell.connect('{user}:{pw}@{caddr}')\n"
             "cluster = dba.get_cluster('{name}')\n"
