@@ -1033,6 +1033,11 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _conn_check.return_value = True
         _status = mock.MagicMock()
         _status.return_value = "OK"
+        _status_mode = mock.MagicMock()
+        _status_mode.return_value = "RO"
+        _status_text = mock.MagicMock()
+        _status_text.return_value = (
+            "Cluster is ONLINE and can tolerate up to ONE failure.")
         self.patch_object(
             mysql_innodb_cluster.charms_openstack.charm.OpenStackCharm,
             "application_version")
@@ -1049,15 +1054,17 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.check_services_running = _check
         midbc.check_mysql_connection = _conn_check
         midbc.get_cluster_status_summary = _status
-        midbc.get_cluster_status_text = _status
-        midbc.get_cluster_instance_mode = _status
+        midbc.get_cluster_status_text = _status_text
+        midbc.get_cluster_instance_mode = _status_mode
 
         midbc._assess_status()
         self.assertEqual(4, len(_check.mock_calls))
         _conn_check.assert_called_once_with()
-        self.assertEqual(2, len(_status.mock_calls))
+        _status.assert_called_once_with(nocache=True)
         self.status_set.assert_called_once_with(
-            "active", "Unit is ready: Mode: OK")
+            "active",
+            "Unit is ready: Mode: RO, Cluster is ONLINE and can "
+            "tolerate up to ONE failure.")
 
         # First checks fail
         self.status_set.reset_mock()
@@ -1074,9 +1081,21 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.status_set.assert_called_once_with(
             "blocked", "MySQL is down on this instance")
 
+        # Cluster inaccessible from this unit
+        self.status_set.reset_mock()
+        _status.return_value = None
+        _check.return_value = None, None
+        _conn_check.return_value = True
+        midbc._assess_status()
+        self.status_set.assert_called_once_with(
+            "blocked",
+            "Cluster is inaccessible from this instance. "
+            "Please check logs for details.")
+
         # Cluster not healthy
         self.status_set.reset_mock()
-        _status.return_value = "Cluster not healthy"
+        _status.return_value = "Not Okay"
+        _status_text.return_value = "Cluster not healthy"
         _check.return_value = None, None
         _conn_check.return_value = True
         midbc._assess_status()

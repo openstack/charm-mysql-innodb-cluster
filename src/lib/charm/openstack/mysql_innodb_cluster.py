@@ -1412,7 +1412,16 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         # Check the state of the cluster. nocache=True will get live info
         _cluster_status = self.get_cluster_status_summary(nocache=True)
-        if not _cluster_status or "OK" not in _cluster_status:
+
+        # LP Bug #1917337
+        if _cluster_status is None:
+            ch_core.hookenv.status_set(
+                "blocked",
+                "Cluster is inaccessible from this instance. "
+                "Please check logs for details.")
+            return
+
+        if "OK" not in _cluster_status:
             ch_core.hookenv.status_set(
                 "blocked",
                 "MySQL InnoDB Cluster not healthy: {}"
@@ -1422,8 +1431,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         # All is good. Report this instance's mode to workgroup status
         ch_core.hookenv.status_set(
             "active",
-            "Unit is ready: Mode: {}"
-            .format(self.get_cluster_instance_mode()))
+            "Unit is ready: Mode: {}, {}"
+            .format(self.get_cluster_instance_mode(),
+                    self.get_cluster_status_text()))
 
     def check_mysql_connection(
             self, username=None, password=None, address=None):
