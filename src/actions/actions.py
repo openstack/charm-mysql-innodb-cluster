@@ -219,7 +219,7 @@ def rejoin_instance(args):
 
     :param args: sys.argv
     :type args: sys.argv
-    :side effect: Calls instance.mysqldump
+    :side effect: Calls instance.rejoin_instance
     :returns: This function is called for its side effect
     :rtype: None
     :action param address: String address of the instance to be joined
