@@ -317,7 +317,7 @@ def set_cluster_option(args):
 
     :param args: sys.argv
     :type args: sys.argv
-    :side effect: Calls instance.mysqldump
+    :side effect: Calls instance.set_cluster_option
     :returns: This function is called for its side effect
     :rtype: None
     :action param key: String option name
