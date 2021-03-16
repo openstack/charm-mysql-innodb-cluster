@@ -39,15 +39,15 @@ Charms Deployment Guide][cdg] for more deploy information.
 ## TLS
 
 TLS communication between MySQL InnoDB Cluster and its cloud clients is
-supported.
+supported out of the box via a self-signed CA certificate bundled within MySQL
+itself.
 
-Due to the circular dependency between the vault and mysql-innodb-cluster
-applications, the enablement of this feature can only be done post-deployment
-(once vault has been initialised and has a root Certificate Authority).
-
-Enable database TLS communication with this relation:
+A better option is to use a certificate signed by a Vault-based CA. This can be
+done once Vault has been initialised and has a root CA:
 
     juju add-relation mysql-innodb-cluster:certificates vault:certificates
+
+See the [vault][vault-charm-readme] charm README for more information.
 
 ## Actions
 
@@ -87,6 +87,7 @@ Please report bugs on [Launchpad][lp-bugs-charm-mysql-innodb-cluster].
 [percona-cluster-charm]: https://jaas.ai/percona-cluster
 [mysql-innodb-cluster-charm]: https://jaas.ai/mysql-innodb-cluster
 [mysql-router-charm]: https://jaas.ai/mysql-router
+[vault-charm-readme]: https://opendev.org/openstack/charm-vault/src/branch/master/src/README.md
 [upstream-mysql8]: https://dev.mysql.com/doc/refman/8.0/en/mysql-innodb-cluster-userguide.html
 [cdg-app-ha-mysql8]: https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/latest/app-ha.html#mysql-8
 [juju-docs-config-apps]: https://juju.is/docs/configuring-applications
