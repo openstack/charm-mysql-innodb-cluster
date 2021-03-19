@@ -634,7 +634,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "cluster = dba.get_cluster('{}')\n"
             "cluster.add_instance("
             "{{'user': '{}', 'host': '{}', 'password': '{}', 'port': '3306'}},"
-            "{{'recoveryMethod': 'clone'}})"
+            "{{'recoveryMethod': 'clone', 'waitRecovery': '2', "
+            "'interactive': False}})"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
                 midbc.cluster_address, midbc.cluster_name,
