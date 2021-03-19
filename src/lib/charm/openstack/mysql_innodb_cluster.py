@@ -704,7 +704,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             "cluster.add_instance("
             "{{'user': '{user}', 'host': '{addr}', 'password': '{pw}', "
             "'port': '3306'}},"
-            "{{'recoveryMethod': 'clone'}})"
+            "{{'recoveryMethod': 'clone', 'waitRecovery': '2', "
+            "'interactive': False}})"
             .format(
                 user=self.cluster_user, pw=self.cluster_password,
                 caddr=_primary or self.cluster_address,
@@ -712,10 +713,38 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         try:
             output = self.run_mysqlsh_script(_script)
         except subprocess.CalledProcessError as e:
-            ch_core.hookenv.log(
-                "Failed adding instance {} to cluster: {}"
-                .format(address, e.stderr.decode("UTF-8")), "ERROR")
-            return
+            # LP Bug#1912688
+            # When the recoveryMethod clone actually needs to overwrite the
+            # remote node the mysql-shell unfortunately returns with returncode
+            # 1. Both "Clone process has finished" and "Group Replication is
+            # running" actually indicate successful states.
+            # Creating separate checks in order to get good logging on each
+            # outcome.
+            output = None
+            _stderr = e.stderr.decode("UTF-8")
+            if "Clone process has finished" in _stderr:
+                output = e.stderr
+                ch_core.hookenv.log(
+                    "Add instance {} raised CalledProcessError with "
+                    "returncode 1, however, the output contains 'Clone "
+                    "process has finished' an indication of successfully "
+                    "adding the instance to the cluster."
+                    .format(address), "WARNING")
+            if "Group Replication is running" in _stderr:
+                output = e.stderr
+                ch_core.hookenv.log(
+                    "Add instance {} raised CalledProcessError with "
+                    "returncode 1, however, the output contains 'Group "
+                    "Replication is running' an indication of previously "
+                    "successfully adding the instance to the cluster."
+                    .format(address), "WARNING")
+            # Some failure has occured, return without setting instance
+            # clustered flag.
+            if not output:
+                ch_core.hookenv.log(
+                    "Failed adding instance {} to cluster: {}"
+                    .format(address, _stderr), "ERROR")
+                return
         ch_core.hookenv.log("Instance Clustered {}: {}"
                             .format(address, output.decode("UTF-8")),
                             level="DEBUG")
