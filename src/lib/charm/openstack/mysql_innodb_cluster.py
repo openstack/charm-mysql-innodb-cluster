@@ -1717,13 +1717,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 if changed:
                     reactive.clear_flag('tls.requested')
                     reactive.set_flag('tls.enabled')
-                    if ch_core.hookenv.is_leader():
-                        self.render_all_configs()
-                    else:
-                        # Mysql InnodB Cluster uses coordinator for rolling
-                        # restarts. Request a restart.
-                        coordinator.acquire('config-changed-restart')
-
+                    # Mysql InnodB Cluster uses coordinator for rolling
+                    # restarts. Request a restart.
+                    ch_core.hookenv.log(
+                        "Acquiring config-changed-restart lock for TLS change",
+                        "DEBUG")
+                    coordinator.acquire('config-changed-restart')
             else:
                 reactive.clear_flag('tls.enabled')
 

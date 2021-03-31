@@ -53,6 +53,11 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "config.changed",),
                 "config_changed_restart": (
                     "coordinator.granted.config-changed-restart",),
+                "post_rolling_restart_update_clients": (
+                    'leadership.is_leader',
+                    'leadership.set.cluster-instances-clustered',
+                    'db-router.available',
+                    'coordinator-released-config-changed-restart-lock',),
                 "shared_db_respond": (
                     "leadership.is_leader",
                     "leadership.set.cluster-instances-clustered",

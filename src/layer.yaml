@@ -13,6 +13,9 @@ options:
   snap:
     mysql-shell:
       channel: stable
+  coordinator:
+    class: charm.openstack.delayed_action_coordinator.DelayedActionCoordinator
+
 repo: https://opendev.org/openstack/charm-mysql-innodb-cluster
 config:
   deletes:

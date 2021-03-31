@@ -1,4 +1,3 @@
-import charms.coordinator as coordinator
 import charms.reactive as reactive
 import charms.leadership as leadership
 
@@ -8,6 +7,7 @@ import charms_openstack.charm as charm
 import charmhelpers.core as ch_core
 import charmhelpers.contrib.openstack.cert_utils as cert_utils
 
+import charms.coordinator as coordinator
 import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
 
 charms_openstack.bus.discover()
@@ -219,6 +219,9 @@ def signal_clustered():
 @reactive.when('leadership.set.cluster-instances-clustered')
 @reactive.when('config.changed')
 def config_changed():
+    ch_core.hookenv.log(
+        "Acquiring config-changed-restart lock in config_changed", "DEBUG")
+    coordinator.acquire('config-changed-restart')
     if reactive.is_flag_set('leadership.is_leader'):
         with charm.provide_charm_instance() as instance:
             instance.configure_tls()
@@ -237,17 +240,29 @@ def config_changed():
             except Exception:
                 ch_core.hookenv.log(
                     "Cluster was not availble as expected.", "WARNING")
-        ch_core.hookenv.log("Non-leader requst to restart.", "DEBUG")
-        coordinator.acquire('config-changed-restart')
 
 
 @reactive.when('coordinator.granted.config-changed-restart')
 def config_changed_restart():
+    """Coordinated config change and restart."""
+    ch_core.hookenv.log("Coordinated config_changed_restart", "DEBUG")
     with charm.provide_charm_instance() as instance:
         ch_core.hookenv.status_set(
             'maintenance', 'Rolling config changed and restart.')
         instance.configure_tls()
         instance.render_all_configs()
+
+
+@reactive.when('leadership.is_leader')
+@reactive.when('leadership.set.cluster-instances-clustered')
+@reactive.when('db-router.available')
+@reactive.when('coordinator-released-config-changed-restart-lock')
+def post_rolling_restart_update_clients():
+    """After rolling restart kick off a client update."""
+    ch_core.hookenv.log(
+        "Coordinated post rolling restart client update", "DEBUG")
+    db_router_respond()
+    reactive.clear_flag('coordinator-released-config-changed-restart-lock')
 
 
 @reactive.when('leadership.is_leader')
@@ -281,6 +296,7 @@ def shared_db_respond():
 def db_router_respond():
     """Respond to DB Router Requests.
     """
+    ch_core.hookenv.log("DB router respond", "DEBUG")
     db_router = reactive.endpoint_from_flag("db-router.available")
     with charm.provide_charm_instance() as instance:
         if instance.create_databases_and_users(db_router):
@@ -358,8 +374,6 @@ def configure_certificates():
         for flag in 'certificates.ca.changed', 'certificates.certs.changed':
             if reactive.is_flag_set(flag):
                 reactive.clear_flag(flag)
-    if reactive.is_flag_set('leadership.is_leader'):
-        db_router_respond()
     instance.assess_status()
 
 
