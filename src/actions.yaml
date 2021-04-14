@@ -49,10 +49,12 @@ remove-instance:
       description: Address of the instance to be removed from the cluster
     force:
       type: boolean
+      default: False
       description: Remove the instance even if it is unreachable.
   description: |
      Remove an instance from the cluster. *Note* This action must be run on an
-     instance that is a functioning member of the cluster.
+     instance that is a functioning member of the cluster preferrably the the
+     juju leader to guarantee charm related flags are cleared.
 add-instance:
   params:
     address:

@@ -28,6 +28,31 @@ class FakeException(Exception):
         self.message = message
 
 
+class TestMySQLInnoDBClusterUtils(test_utils.PatchHelper):
+
+    def setUp(self):
+        super().setUp()
+        self.cls = mock.MagicMock()
+
+    def test_make_cluster_instance_configured_key(self):
+        _addr = "10.10.10.10"
+        _expect = (
+            "cluster-instance-configured-{}"
+            .format(_addr.replace(".", "-")))
+        self.assertEqual(
+            _expect,
+            mysql_innodb_cluster.make_cluster_instance_configured_key(_addr))
+
+    def test_make_cluster_instance_clustered_key(self):
+        _addr = "10.10.10.10"
+        _expect = (
+            "cluster-instance-clustered-{}"
+            .format(_addr.replace(".", "-")))
+        self.assertEqual(
+            _expect,
+            mysql_innodb_cluster.make_cluster_instance_clustered_key(_addr))
+
+
 class TestMySQLInnoDBClusterProperties(test_utils.PatchHelper):
 
     def setUp(self):
@@ -74,6 +99,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.patch_object(mysql_innodb_cluster.ch_net_ip, "get_relation_ip")
         self.patch_object(mysql_innodb_cluster.ch_core.host, "pwgen")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "is_leader")
+        self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "relation_set")
         self.patch_object(mysql_innodb_cluster.leadership, "leader_set")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "leader_get")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "config")
@@ -513,13 +539,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
 
         midbc.configure_instance(_addr)
         self.is_flag_set.assert_called_once_with(
-            "leadership.set.cluster-instance-configured-{}".format(_addr))
+            "leadership.set.cluster-instance-configured-{}"
+            .format(_addr.replace(".", "-")))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
         midbc.wait_until_connectable.assert_called_once_with(
             address=_addr, username=midbc.cluster_user,
             password=midbc.cluster_password)
         self.leader_set.assert_called_once_with(
-            {"cluster-instance-configured-{}".format(_addr): True})
+            {"cluster-instance-configured-{}"
+             .format(_addr.replace(".", "-")): True})
 
     def test_restart_instance(self):
         _pass = "clusterpass"
@@ -574,11 +602,12 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _is_flag_set_calls = [
             mock.call("leadership.set.cluster-created"),
             mock.call("leadership.set.cluster-instance-configured-{}"
-                      .format(_addr))]
+                      .format(_addr.replace(".", "-")))]
         self.is_flag_set.assert_has_calls(_is_flag_set_calls, any_order=True)
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
         _leader_set_calls = [
-            mock.call({"cluster-instance-clustered-{}".format(_addr): True}),
+            mock.call({"cluster-instance-clustered-{}"
+                       .format(_addr.replace(".", "-")): True}),
             mock.call({"cluster-created": self.uuid_of_cluster})]
         self.leader_set.assert_has_calls(_leader_set_calls, any_order=True)
 
@@ -614,10 +643,11 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.add_instance_to_cluster(_remote_addr)
         self.is_flag_set.assert_called_once_with(
             "leadership.set.cluster-instance-clustered-{}"
-            .format(_remote_addr))
+            .format(_remote_addr.replace(".", "-")))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
         self.leader_set.assert_called_once_with(
-            {"cluster-instance-clustered-{}".format(_remote_addr): True})
+            {"cluster-instance-clustered-{}"
+             .format(_remote_addr.replace(".", "-")): True})
 
     def test_get_allowed_units(self):
         _allowed = ["unit/2", "unit/1", "unit/0"]
@@ -1015,14 +1045,14 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.super_states.assert_called_once_with(_required_rels)
         self.assertTrue("charm.installed" in _states_to_check)
         self.assertTrue(
-            "leadership.set.cluster-instance-configured-{}".format(_addr) in
-            _states_to_check)
+            "leadership.set.cluster-instance-configured-{}"
+            .format(_addr.replace(".", "-")) in _states_to_check)
         self.assertTrue("leadership.set.cluster-created" in _states_to_check)
         self.assertTrue(
             "leadership.set.cluster-instances-configured" in _states_to_check)
         self.assertTrue(
-            "leadership.set.cluster-instance-clustered-{}".format(_addr) in
-            _states_to_check)
+            "leadership.set.cluster-instance-clustered-{}"
+            .format(_addr.replace(".", "-")) in _states_to_check)
         self.assertTrue(
             "leadership.set.cluster-instances-clustered" in _states_to_check)
 
@@ -1597,3 +1627,43 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _create_cluster_user.return_value = False
         with self.assertRaises(Exception):
             midbc.configure_and_add_instance(address=_remote_addr)
+
+    def test_clear_flags_for_removed_instance(self):
+        _addr = "10.5.0.10"
+        _expected = {
+            "cluster-instance-configured-{}"
+            .format(_addr.replace(".", "-")): None,
+            "cluster-instance-clustered-{}"
+            .format(_addr.replace(".", "-")): None}
+        self.is_leader.return_value = True
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.clear_flags_for_removed_instance(_addr)
+        self.leader_set.assert_called_once_with(_expected)
+
+    def test_update_dotted_flags(self):
+        _existing = {
+            "cluster-instance-configured-10.5.0.10": True,
+            "cluster-instance-configured-10.5.0.20": True,
+            "cluster-instance-configured-10.5.0.30": True,
+            "key": "value",
+            "mysql.passwd": "must-not-change",
+            "cluster-instance-configured-10-5-0-40": True}
+        _expected = {
+            "cluster-instance-configured-10.5.0.10": None,
+            "cluster-instance-configured-10-5-0-10": True,
+            "cluster-instance-configured-10.5.0.20": None,
+            "cluster-instance-configured-10-5-0-20": True,
+            "cluster-instance-configured-10.5.0.30": None,
+            "cluster-instance-configured-10-5-0-30": True,
+            "key": "value",
+            "mysql.passwd": "must-not-change",
+            "cluster-instance-configured-10-5-0-40": True}
+
+        self.is_leader.return_value = True
+        self.leader_get.side_effect = None
+        self.leader_get.return_value = _existing
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.update_dotted_flags()
+        self.leader_set.assert_called_once_with(_expected)

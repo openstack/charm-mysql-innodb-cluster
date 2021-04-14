@@ -29,6 +29,9 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
             "upgrade-charm",
             "charm.installed"]
         hook_set = {
+            "hook": {
+                "custom_upgrade_charm": ("upgrade-charm",),
+            },
             "when": {
                 "leader_install": (
                     "leadership.is_leader", "snap.installed.mysql-shell",),
@@ -79,9 +82,7 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                 "configure_certificates": (
                     "certificates.ca.changed",
                     "certificates.certs.changed",),
-                "scale_in": (
-                    "endpoint.coordinator.departed",
-                    "endpoint.cluster.departed",),
+                "scale_in": ("endpoint.cluster.departed",),
 
             },
             "when_not": {
