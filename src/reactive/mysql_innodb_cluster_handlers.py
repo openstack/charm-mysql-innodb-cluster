@@ -1,3 +1,5 @@
+import json
+
 import charms.reactive as reactive
 import charms.leadership as leadership
 
@@ -12,10 +14,21 @@ import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
 
 charms_openstack.bus.discover()
 
+charm.use_defaults('update-status')
 
-charm.use_defaults(
-    'update-status',
-    'upgrade-charm')
+
+@reactive.hook('upgrade-charm')
+def custom_upgrade_charm():
+    """Custom upgrade charm.
+
+    Fix old style dotted flag names during upgrade-charm hook
+    """
+    with charm.provide_charm_instance() as instance:
+        if reactive.is_flag_set('leadership.is_leader'):
+            # Change leadership cluster flags with dots in their names
+            instance.update_dotted_flags()
+        instance.upgrade_charm()
+        instance.assess_status()
 
 
 @reactive.when('leadership.is_leader')
@@ -156,8 +169,10 @@ def configure_instances_for_clustering():
         # Verify all are configured
         for unit in cluster.all_joined_units:
             if not reactive.is_flag_set(
-                    "leadership.set.cluster-instance-configured-{}"
-                    .format(unit.received['cluster-address'])):
+                "leadership.set.{}"
+                .format(
+                    mysql_innodb_cluster.make_cluster_instance_configured_key(
+                        unit.received['cluster-address']))):
                 return
         # All have been configured
         leadership.leader_set(
@@ -186,8 +201,10 @@ def add_instances_to_cluster():
         # Verify all are clustered
         for unit in cluster.all_joined_units:
             if not reactive.is_flag_set(
-                    "leadership.set.cluster-instance-clustered-{}"
-                    .format(unit.received['cluster-address'])):
+                "leadership.set.{}"
+                .format(
+                    mysql_innodb_cluster.make_cluster_instance_clustered_key(
+                        unit.received['cluster-address']))):
                 return
         # All have been clustered
         leadership.leader_set(
@@ -210,8 +227,10 @@ def signal_clustered():
     # Optimize clustering by causing a cluster relation changed
     with charm.provide_charm_instance() as instance:
         if reactive.is_flag_set(
-                "leadership.set.cluster-instance-clustered-{}"
-                .format(instance.cluster_address)):
+                "leadership.set.{}"
+                .format(
+                    mysql_innodb_cluster.make_cluster_instance_clustered_key(
+                        instance.cluster_address))):
             cluster.set_unit_clustered()
         instance.assess_status()
 
@@ -317,8 +336,10 @@ def scale_out():
     ch_core.hookenv.log("Scale out: add new nodes.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         if not reactive.is_flag_set(
-                "leadership.set.cluster-instance-clustered-{}"
-                .format(instance.cluster_address)):
+                "leadership.set.{}"
+                .format(
+                    mysql_innodb_cluster.make_cluster_instance_clustered_key(
+                        instance.cluster_address))):
             ch_core.hookenv.log(
                 "Unexpected edge case. This node is the leader but it is "
                 "not yet clustered. As a non-cluster member it will not be "
@@ -377,32 +398,64 @@ def configure_certificates():
     instance.assess_status()
 
 
-@reactive.when_any(
-    'endpoint.coordinator.departed',
-    'endpoint.cluster.departed',
-)
+# Only react to cluster.departed
+@reactive.when('endpoint.cluster.departed')
 def scale_in():
     """ Handle scale in.
 
-    If this is the node departing, stop services and notify peers.
+    Only react to cluster.departed, not any other departed hook nor a
+    cluster.broken hook. Cluster.departed is only executed once on any given
+    node. We want to shutdown and clean up only in a graceful departing
+    scenario. The remove-instance action will function for all other scenarios.
+
+    If this is the node departing, stop services and notify peers. If this is
+    the leader node and not the departing node, attempt to remove the instance
+    from cluster metadata.
     """
-    if not ch_core.hookenv.departing_unit():
+    # Intentionally using the charm helper rather than the interface to
+    # guarantee we get only the departing instance's cluster-address
+    _departing_address = ch_core.hookenv.relation_get("cluster-address")
+    _departing_unit = ch_core.hookenv.departing_unit()
+    if not _departing_unit:
         ch_core.hookenv.log(
-            "In a cluster/coordinator departing hook but departing unit is "
-            "unset. Doing nothing."
-            "WARNING")
+            "In a cluster departing hook but departing unit is unset. "
+            "Doing nothing.", "WARNING")
         return
 
-    if ch_core.hookenv.local_unit() in ch_core.hookenv.departing_unit():
-        ch_core.hookenv.log(
-            "{} is this unit departing. Shutting down."
-            .format(ch_core.hookenv.departing_unit()),
-            "WARNING")
-        reactive.set_flag("local.cluster.unit.departing")
-        with charm.provide_charm_instance() as instance:
+    with charm.provide_charm_instance() as instance:
+        if ch_core.hookenv.local_unit() == _departing_unit:
+            # If this is the departing unit stop mysql and attempt a clean
+            # departure.
+            ch_core.hookenv.log(
+                "{} is this unit departing. Shutting down."
+                .format(_departing_unit),
+                "WARNING")
+            reactive.set_flag("local.cluster.unit.departing")
             instance.depart_instance()
-    else:
-        ch_core.hookenv.log(
-            "{} is not this unit departing. Do nothing."
-            .format(ch_core.hookenv.departing_unit()),
-            "WARNING")
+            if reactive.is_flag_set('leadership.is_leader'):
+                ch_core.hookenv.log(
+                    "Since this departing instance is the juju leader node it "
+                    "is not possible to automatically remove it from cluster "
+                    "metadata. Run the remove-instance action on the newly "
+                    "elected leader with address={} to remove it from cluster "
+                    "metadata and clear flags."
+                    .format(instance.cluster_address),
+                    "WARNING")
+        elif reactive.is_flag_set('leadership.is_leader'):
+            # Attempt to clean up departing unit.
+            # If the departing unit's IP remains in cluster metadata as seen in
+            # the cluster-status action, run the remove-instance action with
+            # the "MISSING" instance's IP.
+            if _departing_address:
+                ch_core.hookenv.log(
+                    "Automatically removing departing instance {} from "
+                    "cluster metadata."
+                    .format(_departing_address), "WARNING")
+                instance.remove_instance(
+                    json.loads(_departing_address), force=True)
+            else:
+                ch_core.hookenv.log(
+                    "Leader is unable to cleanly remove departing instance "
+                    "{_du}. No cluster-address provided. Run remove-instance "
+                    "address={_du} to clear cluster metadata and flags."
+                    .format(_du=_departing_unit), "WARNING")

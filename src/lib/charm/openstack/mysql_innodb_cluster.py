@@ -38,6 +38,18 @@ from charms_openstack.charm import utils as chos_utils
 
 
 MYSQLD_CNF = "/etc/mysql/mysql.conf.d/mysqld.cnf"
+CLUSTER_INSTANCE_CONFIGURED = "cluster-instance-configured-{}"
+CLUSTER_INSTANCE_CLUSTERED = "cluster-instance-clustered-{}"
+
+
+def make_cluster_instance_configured_key(address):
+    return CLUSTER_INSTANCE_CONFIGURED.format(
+        address.replace(".", "-"))
+
+
+def make_cluster_instance_clustered_key(address):
+    return CLUSTER_INSTANCE_CLUSTERED.format(
+        address.replace(".", "-"))
 
 
 @charms_openstack.adapters.config_property
@@ -561,8 +573,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: None
         """
         if reactive.is_flag_set(
-                "leadership.set.cluster-instance-configured-{}"
-                .format(address)):
+                "leadership.set.{}"
+                .format(make_cluster_instance_configured_key(address))):
             ch_core.hookenv.log("Instance: {}, already configured."
                                 .format(address), "WARNING")
             return
@@ -592,8 +604,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         ch_core.hookenv.log("Instance Configured {}: {}"
                             .format(address, output.decode("UTF-8")),
                             level="DEBUG")
-        leadership.leader_set({"cluster-instance-configured-{}"
-                               .format(address): True})
+        leadership.leader_set({
+            make_cluster_instance_configured_key(address): True})
 
     def create_cluster(self):
         """Create the MySQL InnoDB cluster.
@@ -612,8 +624,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             return
 
         if not reactive.is_flag_set(
-                "leadership.set.cluster-instance-configured-{}"
-                .format(self.cluster_address)):
+                "leadership.set.{}"
+                .format(make_cluster_instance_configured_key(
+                    self.cluster_address))):
             ch_core.hookenv.log("This instance is not yet configured for "
                                 "clustering, delaying cluster creation.",
                                 "WARNING")
@@ -640,8 +653,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         ch_core.hookenv.log("Cluster Created: {}"
                             .format(output.decode("UTF-8")),
                             level="DEBUG")
-        leadership.leader_set({"cluster-instance-clustered-{}"
-                               .format(self.cluster_address): True})
+        leadership.leader_set({
+            make_cluster_instance_clustered_key(self.cluster_address): True})
         leadership.leader_set({"cluster-created": str(uuid.uuid4())})
 
     def set_cluster_option(self, key, value):
@@ -689,8 +702,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: None
         """
         if reactive.is_flag_set(
-                "leadership.set.cluster-instance-clustered-{}"
-                .format(address)):
+                "leadership.set.{}"
+                .format(make_cluster_instance_clustered_key(address))):
             ch_core.hookenv.log("Instance: {}, already clustered."
                                 .format(address), "WARNING")
             return
@@ -748,8 +761,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         ch_core.hookenv.log("Instance Clustered {}: {}"
                             .format(address, output.decode("UTF-8")),
                             level="DEBUG")
-        leadership.leader_set({"cluster-instance-clustered-{}"
-                               .format(address): True})
+        leadership.leader_set({
+            make_cluster_instance_clustered_key(address): True})
 
     def restart_instance(self, address):
         """Restart instance
@@ -885,12 +898,25 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 user=self.cluster_user, pw=self.cluster_password,
                 caddr=_primary or self.cluster_address,
                 name=self.cluster_name, addr=address, force=force))
+
         try:
             output = self.run_mysqlsh_script(_script).decode("UTF-8")
             ch_core.hookenv.log(
                 "Remove instance {} successful: "
                 "{}".format(address, output),
                 level="DEBUG")
+            # Clear flags to avoid LP Bug#1922394
+            if ch_core.hookenv.is_leader():
+                self.clear_flags_for_removed_instance(address)
+            else:
+                ch_core.hookenv.log(
+                    "Unable to clear {} and {} flags as this is not the "
+                    "leader unit. Run leader-set manually on the leader and "
+                    "set these values to None to avoid LP Bug#1922394"
+                    .format(
+                        make_cluster_instance_configured_key(address),
+                        make_cluster_instance_clustered_key(address)),
+                    "WARNING")
             return output
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
@@ -983,8 +1009,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         """
         # Speed up when we are not yet clustered
         if not reactive.is_flag_set(
-                "leadership.set.cluster-instance-clustered-{}"
-                .format(self.cluster_address)):
+                "leadership.set.{}"
+                .format(make_cluster_instance_clustered_key(
+                    self.cluster_address))):
             ch_core.hookenv.log(
                 "This instance is not yet clustered: cannot determine the "
                 "cluster status.", "WARNING")
@@ -1378,8 +1405,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             ("charm.installed",
              "waiting",
              "MySQL not installed"),
-            ("leadership.set.cluster-instance-configured-{}"
-             .format(self.cluster_address),
+            ("leadership.set.{}"
+             .format(make_cluster_instance_configured_key(
+                 self.cluster_address)),
              "waiting",
              "Instance not yet configured for clustering"),
             ("leadership.set.cluster-created",
@@ -1389,8 +1417,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             ("leadership.set.cluster-instances-configured",
              "waiting",
              "Not all instances configured for clustering"),
-            ("leadership.set.cluster-instance-clustered-{}"
-             .format(self.cluster_address),
+            ("leadership.set.{}"
+             .format(make_cluster_instance_clustered_key(
+                 self.cluster_address)),
              "waiting",
              "Instance not yet in the cluster"),
             ("leadership.set.cluster-instances-clustered",
@@ -1772,11 +1801,81 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         ch_core.hookenv.log("Disabling mysql ...", "WARNING")
         subprocess.check_call(["update-rc.d", self.default_service, "disable"])
 
+        # Note: Keeping cluster-address set as the leader unit will use this to
+        # clean up.
         ch_core.hookenv.log("Unsetting cluster values ...", "WARNING")
         if self.cluster_relation_endpoint:
-            self.cluster_relation_endpoint.peer_relation.to_publish_raw[
-                'cluster-address'] = None
             self.cluster_relation_endpoint.peer_relation.to_publish_raw[
                 'cluster-user'] = None
             self.cluster_relation_endpoint.peer_relation.to_publish_raw[
                 'cluster-password'] = None
+        if ch_core.hookenv.is_leader():
+            self.clear_flags_for_removed_instance(self.cluster_address)
+
+    def clear_flags_for_removed_instance(self, address):
+        """Clear leadership flags for a removed or departed instance.
+
+        When an instance is removed or departed, if the leader settings for
+        cluster-instance-configured-<IP> and cluster-instance-clustered-<IP>
+        are not removed and a new instance happens to have the same IP it will
+        never be joined the cluster.
+
+        Clear the flags to allow the introduction of a new instance with the
+        same IP.
+
+        :param address: Address of the MySQL instance to remove flags for
+        :type address: str
+        :side effect: Calls leader set
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        if not ch_core.hookenv.is_leader():
+            ch_core.hookenv.log(
+                "Clear leadership flags for removed instance with address {} "
+                "called on a non-leader node. Flags are not unset and may "
+                "require the remove-instance action.", "WARNING")
+            return
+
+        # Clear flags to avoid LP Bug#1922394
+        leadership.leader_set({
+            make_cluster_instance_configured_key(address): None,
+            make_cluster_instance_clustered_key(address): None})
+
+    def update_dotted_flags(self):
+        """Update leadership settings for cluster flags with dotted names.
+
+        Called during update-status hook.
+        Due to a bug in Juju the flags the charm previously used like the
+        following could not be unset:
+
+           cluster-instance-clustered-10.5.5.1
+           cluster-instance-configured-10.5.5.1
+
+        Update leader settings for all cluster-* flags that have dots in
+        their names. These updated flags can then be unset when an instance
+        is removed.
+
+        :side effect: Calls leader set
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        if not ch_core.hookenv.is_leader():
+            ch_core.hookenv.log(
+                "Update dotted flags called on a non-leader node. Bailing.",
+                "WARNING")
+            return
+
+        _leader_settings = ch_core.hookenv.leader_get()
+        _new_leader_settings = {}
+        for key in _leader_settings.keys():
+            # Don't update mysql.passwd
+            if key.startswith("cluster") and "." in key:
+                # Clear the dotted version
+                _new_leader_settings[key] = None
+                # Set the hyphenated version
+                _new_leader_settings[key.replace(".", "-")] = (
+                    _leader_settings[key])
+            else:
+                _new_leader_settings[key] = _leader_settings[key]
+
+        leadership.leader_set(_new_leader_settings)
