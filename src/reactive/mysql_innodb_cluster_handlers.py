@@ -129,6 +129,25 @@ def create_remote_cluster_user():
         instance.assess_status()
 
 
+@reactive.when('cluster.available')
+def check_quorum():
+    """Check that all units have sent their cluster address.
+
+    When the cluster is created an ip allow list is set. This cannot be
+    updated while replication is running. To avoid the need to update
+    it after cluster creation wait for all cluster addresses to be present.
+    NOTE: The update-unit-acls action can be run if a unit on a new subnet
+          is added to an existing cluster.
+    """
+    with charm.provide_charm_instance() as instance:
+        if instance.reached_quorum():
+            ch_core.hookenv.log("Reached quorum", "DEBUG")
+            reactive.set_flag('local.cluster.quorum-reached')
+        else:
+            ch_core.hookenv.log("Quorum not reached", "DEBUG")
+
+
+@reactive.when('local.cluster.quorum-reached')
 @reactive.when('leadership.is_leader')
 @reactive.when('local.cluster.user-created')
 @reactive.when_not('leadership.set.cluster-created')

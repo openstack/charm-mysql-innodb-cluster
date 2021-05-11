@@ -14,6 +14,7 @@
 
 import base64
 import datetime
+import ipaddress
 import json
 import os
 import subprocess
@@ -607,6 +608,50 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({
             make_cluster_instance_configured_key(address): True})
 
+    def get_cluster_subnets(self):
+        """Return a list of subnets covering all units.
+
+        :returns: List of subnets
+        :rtype: List
+        """
+        ips = self.cluster_peer_addresses
+        ips.append(self.cluster_address)
+        return list(set([ch_net_ip.resolve_network_cidr(ip) for ip in ips]))
+
+    def generate_ip_allowlist_str(self):
+        """Generate an ip allow list to permit all units to access each other.
+
+        Generate an ip allow list to permit all units to access each other
+        and to allow localhost connections.
+
+        :returns: Value for ip allow list for this cluster
+        :rtype: str
+        """
+        return "127.0.0.1,::1,{}".format(
+            ",".join(sorted(self.get_cluster_subnets())))
+
+    def reached_quorum(self):
+        """Check if all peer units have joined.
+
+        Compare the number of units reported in goal state with the number of
+        units that have advertised their cluster address on the peer relation.
+
+        :returns: Whether all peer units have joined
+        :rtype: Boolean
+        """
+        cluster = reactive.endpoint_from_flag("cluster.available")
+        peer_addresses = [u.received['cluster-address']
+                          for u in cluster.all_joined_units
+                          if u.received['cluster-address']]
+        ch_core.hookenv.log(
+            "Found peers: {}".format(",".join(peer_addresses)),
+            "DEBUG")
+        expected_unit_count = len(list(ch_core.hookenv.expected_peer_units()))
+        ch_core.hookenv.log(
+            "Expect {} peers".format(expected_unit_count),
+            "DEBUG")
+        return len(peer_addresses) >= expected_unit_count
+
     def create_cluster(self):
         """Create the MySQL InnoDB cluster.
 
@@ -635,11 +680,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         _script = (
             "shell.connect('{}:{}@{}')\n"
             "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}', "
-            "'expelTimeout': '{}'}})"
+            "'expelTimeout': '{}', 'ipAllowlist': '{}'}})"
             .format(
                 self.cluster_user, self.cluster_password, self.cluster_address,
                 self.options.cluster_name, self.options.auto_rejoin_tries,
-                self.options.expel_timeout
+                self.options.expel_timeout, self.generate_ip_allowlist_str()
             ))
         ch_core.hookenv.log("Creating cluster: {}."
                             .format(self.options.cluster_name), "INFO")
@@ -690,6 +735,70 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             # Reraise for action handling
             raise e
 
+    def get_ip_allowlist_str_from_db(self, m_helper=None):
+        """Helper for retrieving ip allow list
+
+        :param m_helper: Helper for connecting to DB.
+        :type m_helper: mysql.MySQL8Helper
+        :returns: Current setting of group_replication_ip_allowlist
+        :rtype: str
+        """
+        if not m_helper:
+            m_helper = self.get_db_helper()
+            m_helper.connect(password=self.mysql_password)
+        query_out = m_helper.select(
+            "SHOW GLOBAL VARIABLES LIKE 'group_replication_ip_allowlist'")
+        assert len(query_out) == 1 and len(query_out[0]) == 2, \
+            "ip allowlist query returned unexpected result: {}".format(
+                query_out)
+        return query_out[0][1]
+
+    def get_ip_allowlist_list_from_db(self, m_helper=None):
+        """Extract group_replication_ip_allowlist from db.
+
+        :param m_helper: Helper for connecting to DB.
+        :type m_helper: mysql.MySQL8Helper
+        :returns: Current setting of group_replication_ip_allowlist
+        :rtype: List[str]
+        """
+        allow_list = self.get_ip_allowlist_str_from_db(m_helper=m_helper)
+        return allow_list.split(',')
+
+    def is_address_in_replication_ip_allowlist(self, address,
+                                               ip_allowlist=None):
+        """Check if address is in ip allow list.
+
+        :param address: IP address to check against.
+        :type address: str
+        :param ip_allowlist: IP/CIDRs to check against.
+        :type ip_allowlist: List[str]
+        :returns: Whether address is allowed to connect to cluster.
+        :rtype: Boolean
+        """
+        ip_allowlist = ip_allowlist or self.get_ip_allowlist_list_from_db()
+        allowed = False
+        for net in ip_allowlist:
+            if net == 'AUTOMATIC':
+                if ipaddress.ip_address(address).is_private:
+                    allowed = True
+            elif ch_net_ip.is_address_in_network(net, address):
+                allowed = True
+        return allowed
+
+    def get_denied_peers(self):
+        """List of peer units that are not in the IP allow list.
+
+        :returns: Units which are not permitted to connect to cluster.
+        :rtype: List[str]
+        """
+        ip_allowlist = self.get_ip_allowlist_list_from_db()
+        denied_peers = []
+        for addr in self.cluster_peer_addresses:
+            if not self.is_address_in_replication_ip_allowlist(addr,
+                                                               ip_allowlist):
+                denied_peers.append(addr)
+        return denied_peers
+
     def add_instance_to_cluster(self, address):
         """Add MySQL instance to the cluster.
 
@@ -718,11 +827,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             "{{'user': '{user}', 'host': '{addr}', 'password': '{pw}', "
             "'port': '3306'}},"
             "{{'recoveryMethod': 'clone', 'waitRecovery': '2', "
-            "'interactive': False}})"
+            "'interactive': False, 'ipAllowlist': '{allowlist}'}})"
             .format(
                 user=self.cluster_user, pw=self.cluster_password,
                 caddr=_primary or self.cluster_address,
-                name=self.options.cluster_name, addr=address))
+                name=self.options.cluster_name, addr=address,
+                allowlist=self.generate_ip_allowlist_str()))
         try:
             output = self.run_mysqlsh_script(_script)
         except subprocess.CalledProcessError as e:
@@ -1470,13 +1580,22 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         # Check the state of the cluster. nocache=True will get live info
         _cluster_status = self.get_cluster_status_summary(nocache=True)
-
         # LP Bug #1917337
         if _cluster_status is None:
             ch_core.hookenv.status_set(
                 "blocked",
                 "Cluster is inaccessible from this instance. "
                 "Please check logs for details.")
+            return
+
+        # Check all peers are allowed to connect to this unit
+        denied_peers = self.get_denied_peers()
+        if denied_peers:
+            ch_core.hookenv.status_set(
+                "blocked",
+                "Units not allowed to replicate with this unit: {}. See "
+                "update-unit-acls action.".format(
+                    ",".join(denied_peers)))
             return
 
         if "OK" not in _cluster_status:
@@ -1879,3 +1998,86 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 _new_leader_settings[key] = _leader_settings[key]
 
         leadership.leader_set(_new_leader_settings)
+
+    @tenacity.retry(wait=tenacity.wait_fixed(6),
+                    reraise=True,
+                    stop=tenacity.stop_after_attempt(5),
+                    retry=tenacity.retry_if_exception_type(ValueError))
+    def wait_for_cluster_state(self, m_helper, node_address, target_state):
+        """Wait for replication member to reach given state.
+
+        Wait for a given member of the cluster, indicated by node_address, to
+        be in the target_state.
+
+        :param m_helper: Helper for connecting to DB.
+        :type m_helper: mysql.MySQL8Helper
+        :param node_address: IP address of node to query.
+        :type node_address: str
+        :param target_state: State to wait for.
+        :type target_state: str
+        :raises: ValueError
+        """
+        CLUSTER_QUERY = """
+        SELECT MEMBER_STATE
+        FROM performance_schema.replication_group_members
+        where MEMBER_HOST='{address}'
+        """
+        query_out = m_helper.select(CLUSTER_QUERY.format(address=node_address))
+        assert len(query_out) == 1 and len(query_out[0]) == 1, \
+            "Cluster query returned unexpected result for {}: {}".format(
+                node_address,
+                query_out)
+        if query_out[0][0] != target_state:
+            raise ValueError
+
+    def get_clustered_addresses(self):
+        """Get the cluster addresses of all units which have joined cluster.
+
+        :returns: List of IP addresses
+        :rtype: List[str]
+        """
+        _leader_settings = ch_core.hookenv.leader_get()
+        all_addresses = self.cluster_peer_addresses
+        all_addresses.append(self.cluster_address)
+        clustered_addresses = []
+        for address in all_addresses:
+            leader_key = make_cluster_instance_clustered_key(address)
+            _value = _leader_settings.get(leader_key)
+            if _value and ch_core.strutils.bool_from_string(_value):
+                clustered_addresses.append(address)
+        return clustered_addresses
+
+    def update_acls(self):
+        """Update IP allow list on each node in cluster.
+
+        Update IP allow list on each node in cluster. At present this can only
+        be done when replication is stopped.
+        """
+        ip_allow_list = self.generate_ip_allowlist_str()
+        for address in self.get_clustered_addresses():
+            m_helper = mysql.MySQL8Helper(
+                'unused',
+                'unused',
+                host=address,
+                migrate_passwd_to_leader_storage=False,
+                delete_ondisk_passwd_file=False,
+                user=self.cluster_user,
+                password=self.cluster_password)
+            # Bug in helper causes it to use root user irrespective of the user
+            # setting when mysql.MySQL8Helper is instantiated.
+            m_helper.connect(user=self.cluster_user)
+            current_allow_list = self.get_ip_allowlist_str_from_db(
+                m_helper)
+            if current_allow_list == ip_allow_list:
+                ch_core.hookenv.log(
+                    ("group_replication_ip_allowlist does not need updating "
+                     "on {}").format(address),
+                    "DEBUG")
+            else:
+                m_helper.execute("STOP GROUP_REPLICATION")
+                self.wait_for_cluster_state(m_helper, address, 'OFFLINE')
+                m_helper.execute(
+                    "SET GLOBAL group_replication_ip_allowlist = '{}'".format(
+                        ip_allow_list))
+                m_helper.execute("START GROUP_REPLICATION")
+                self.wait_for_cluster_state(m_helper, address, 'ONLINE')

@@ -49,6 +49,15 @@ done once Vault has been initialised and has a root CA:
 
 See the [vault][vault-charm-readme] charm README for more information.
 
+## Adding a unit on a new subnet
+
+If a new unit is added after the cluster has already formed and the new unit
+is on different subnet to any of the existing units then the following actions
+are needed to add the unit to the cluster:
+
+    juju run-action mysql-innodb-cluster/leader update-unit-acls
+    juju run-action mysql-innodb-cluster/leader add-instance address=<address of new unit>
+
 ## Actions
 
 This section lists Juju [actions][juju-docs-actions] supported by the charm.
@@ -65,6 +74,7 @@ If the charm is not deployed then see file `actions.yaml`.
 * `remove-instance`
 * `restore-mysqldump`
 * `set-cluster-option`
+* `update-unit-acls`
 
 # Documentation
 

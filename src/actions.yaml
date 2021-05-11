@@ -73,3 +73,11 @@ set-cluster-option:
       description: Option value
   description: |
      Set an option on the cluster.
+update-unit-acls:
+  description: |
+     This action should only be needed if a unit was added to the cluster on a
+     new subnet. In this case *group_replication_ip_allowlist* need updating to
+     include the subnet. Run *add-instance* to add in the new unit once this
+     action succesfully completes.
+     WARNING Group replication is stopped on each unit to allow the update to
+     happen.
