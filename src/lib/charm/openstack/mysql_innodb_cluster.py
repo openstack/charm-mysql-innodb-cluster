@@ -213,8 +213,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def mysqlsh_bin(self):
         """Determine binary path for MySQL Shell.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Path to binary mysqlsh
         :rtype: str
         """
@@ -231,8 +229,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def mysqlsh_common_dir(self):
         """Determine snap common dir for mysqlsh
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Path to common dir
         :rtype: str
         """
@@ -242,8 +238,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def mysql_password(self):
         """Determine or set primary MySQL password.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: MySQL password
         :rtype: str
         """
@@ -253,8 +247,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def cluster_name(self):
         """Determine the MySQL InnoDB Cluster name.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Cluster name
         :rtype: str
         """
@@ -264,8 +256,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def cluster_password(self):
         """Determine or set password for the cluster user.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Cluster password
         :rtype: str
         """
@@ -277,8 +267,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         Using the class method determine this unit's cluster address.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Address
         :rtype: str
         """
@@ -290,8 +278,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         Using the class method determine this unit's cluster address.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Port
         :rtype: str
         """
@@ -301,8 +287,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def cluster_user(self):
         """Determine the cluster username.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Cluster username
         :rtype: str
         """
@@ -312,8 +296,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def cluster_relation_endpoint(self):
         """Determine the cluster username.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Cluster username
         :rtype: str
         """
@@ -326,8 +308,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Using the class method determine this unit's address for the Shared-DB
         relation.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Address
         :rtype: str
         """
@@ -340,8 +320,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Using the class method determine this unit's address for the DB-Router
         relation.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Address
         :rtype: str
         """
@@ -351,8 +329,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def ssl_ca(self):
         """Return the SSL Certificate Authority
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Cluster username
         :rtype: str
         """
@@ -379,8 +355,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         Once set, it cannot be changed.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param key: Named password or None if unable to retrieve at this point
                     in time
         :type key: str
@@ -400,8 +374,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Prior to installation set the root-password for the MySQL server
         package(s).
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Executes debconf
         :returns: This function is called for its side effect
         :rtype: None
@@ -423,8 +395,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def install(self):
         """Custom install function.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Executes other functions
         :returns: This function is called for its side effect
         :rtype: None
@@ -447,8 +417,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def get_db_helper(self):
         """Get an instance of the MySQLDB8Helper class.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Instance of MySQLDB8Helper class
         :rtype: MySQLDB8Helper instance
         """
@@ -466,8 +434,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         Connect to the RW cluster primary node and return a DB helper.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Instance of MySQLDB8Helper class
         :rtype: Union[None, MySQLDB8Helper]
         """
@@ -494,8 +460,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         The grants are specfic to cluster creation and management as documented
         upstream.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param cluster_address: Cluster user's address
         :type cluster_address: str
         :param cluster_user: Cluster user's username
@@ -564,8 +528,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def configure_instance(self, address):
         """Configure MySQL instance for clustering.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param address: Address of the MySQL instance to be configured
         :type address: str
         :side effect: Calls self.run_mysqlsh_script
@@ -612,8 +574,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         Creates the MySQL InnoDB cluster using self.cluster_name.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
@@ -660,8 +620,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def set_cluster_option(self, key, value):
         """Set an option on the cluster
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param key: Option name
         :type key: str
         :param value: Option value
@@ -693,8 +651,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def add_instance_to_cluster(self, address):
         """Add MySQL instance to the cluster.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param address: Address of the MySQL instance to be clustered
         :type address: str
         :side effect: Calls self.run_mysqlsh_script
@@ -767,8 +723,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def restart_instance(self, address):
         """Restart instance
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param address: Address of the MySQL instance to be configured
         :type address: str
         :side effect: Calls self.run_mysqlsh_script
@@ -812,8 +766,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         This will rebootstrap the cluster and join this instance to the
         previously existing cluster.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
@@ -845,8 +797,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Execute the cluster.rejoin_instance(address) to rejoin the specified
         instance to the cluster.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
@@ -882,8 +832,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Execute the cluster.remove_instance(address) to remove an instance from
         the cluster.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
@@ -931,8 +879,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         Execute the cluster.rescan() to cleanup metadata.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls self.run_mysqlsh_script
         :returns: This function is called for its side effect
         :rtype: None
@@ -966,8 +912,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         If an instance was not able to be joined to the cluster this method
         will make sure it is configured and add it to the cluster.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls self.create_user, self.configure_instance and
                       self.add_instance_to_cluster.
         :returns: This function is called for its side effects
@@ -999,8 +943,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         not explicity avoided with the nocache parameter, avoid the expensive
         DB query.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param nocache: Do not return cached data
         :type nocache: Boolean
         :side effect: Calls self.check_mysql_connection
@@ -1054,8 +996,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         primary R/W node in the cluster.  This node is safe to use for writes
         to the cluster.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param nocache: Do not return cached data
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
@@ -1081,8 +1021,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         explicity avoided with the nocache parameter, avoid the call to
         self.get_cluster_status.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param nocache: Do not return cached data
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
@@ -1105,8 +1043,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         exists and is not explicity avoided with the nocache parameter, avoid
         the call to self.get_cluster_status.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param nocache: Do not return cached data
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
@@ -1129,8 +1065,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         If cached data exists and is not explicity avoided with the nocache
         parameter, avoid the call to self.get_cluster_status.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param nocache: Do not return cached data
         :type nocache: Boolean
         :side effect: Calls self.get_cluster_status
@@ -1155,8 +1089,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Call MySQL8Helper.get_allowed_units and return space delimited list of
         allowed unit names.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param database: Database name
         :type database: str
         :param username: Username
@@ -1185,8 +1117,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Take an Endpoint interface and create databases and users based on the
         requests on the relation.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param interface: Interface Object (shared-db or db-router)
         :type interface: reactive.relations.Endpoint object
         :side effect: interface.set_db_connection_info is executed
@@ -1276,8 +1206,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Create and configure database and user with full access permissions
         from host(s).
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param hosts: Hosts may be a json-encoded list of hosts or a single
                       hostname.
         :type hosts: Union[str, Json list]
@@ -1334,8 +1262,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         Create and configure MySQL Router user with mysql router specific
         permissions from host(s).
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param hosts: Hosts may be a json-encoded list of hosts or a single
                       hostname.
         :type hosts: Union[str, Json list]
@@ -1392,8 +1318,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         of the relations passed, along with error messages and new status
         conditions.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :param required_relations: List of relations which overrides
                                    self.relations
         :type required_relations: list of strings
@@ -1435,8 +1359,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         MySQL instance, checks the health of the cluster and reports this
         unit's cluster mode. i.e. R/W or R/O.
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :side effect: Calls status_set
         :returns: This function is called for its side effect
         :rtype: None
@@ -1705,8 +1627,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def cluster_peer_addresses(self):
         """Cluster peer addresses
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Cluster peer addresses
         :rtype: list
         """
@@ -1719,8 +1639,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
     def mysql_server_bindings(self):
         """MySQL Server Bindings
 
-        :param self: Self
-        :type self: MySQLInnoDBClusterCharm instance
         :returns: Bindings where MySQL is listening
         :rtype: list
         """
