@@ -11,6 +11,7 @@ series:
 - focal
 - groovy
 - hirsute
+- impish
 provides:
   shared-db:
     interface: mysql-shared
