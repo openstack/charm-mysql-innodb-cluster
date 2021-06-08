@@ -549,6 +549,59 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             {"cluster-instance-configured-{}"
              .format(_addr.replace(".", "-")): True})
 
+    @mock.patch(('charm.openstack.mysql_innodb_cluster.'
+                 'MySQLInnoDBClusterCharm.cluster_peer_addresses'),
+                new_callable=mock.PropertyMock)
+    @mock.patch(('charm.openstack.mysql_innodb_cluster.'
+                 'MySQLInnoDBClusterCharm.cluster_address'),
+                new_callable=mock.PropertyMock)
+    def test_get_cluster_subnets(self, cluster_address,
+                                 cluster_peer_addresses):
+        self.patch_object(
+            mysql_innodb_cluster.ch_net_ip,
+            "resolve_network_cidr",
+            side_effect=lambda x: '{}.{}.0.0/24'.format(
+                x.split('.')[0],
+                x.split('.')[1]))
+        cluster_peer_addresses.return_value = [
+            '10.0.0.13', '10.0.0.11', '10.10.0.10']
+        cluster_address.return_value = '10.0.0.12'
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(
+            midbc.get_cluster_subnets(),
+            ['10.10.0.0/24', '10.0.0.0/24'])
+
+    def test_generate_ip_allowlist_str(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_subnets = lambda: ['10.0.0.10', '10.0.0.11']
+        self.assertEqual(
+            midbc.generate_ip_allowlist_str(),
+            '127.0.0.1,::1,10.0.0.10,10.0.0.11')
+
+    def test_reached_quorum(self):
+        self.patch_object(
+            mysql_innodb_cluster.ch_core.hookenv, "expected_peer_units",
+            return_value=['u1'])
+        self.patch_object(
+            mysql_innodb_cluster.reactive, "endpoint_from_flag",
+            return_value=self.cluster)
+        self.data = {
+            "cluster-address": "10.0.0.11"}
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertTrue(midbc.reached_quorum())
+
+    def test_reached_quorum_fail(self):
+        self.patch_object(
+            mysql_innodb_cluster.ch_core.hookenv, "expected_peer_units",
+            return_value=['u1', 'u2'])
+        self.patch_object(
+            mysql_innodb_cluster.reactive, "endpoint_from_flag",
+            return_value=self.cluster)
+        self.data = {
+            "cluster-address": "10.0.0.11"}
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertFalse(midbc.reached_quorum())
+
     def test_restart_instance(self):
         _pass = "clusterpass"
         _addr = "10.10.30.30"
@@ -576,6 +629,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _addr = "10.10.40.40"
         _name = "jujuCluster"
         _tries = 500
+        _allowlist = '10.0.0.0/24'
         _expel_timeout = 5
         self.get_relation_ip.return_value = _addr
         self.data = {"cluster-password": _pass}
@@ -589,14 +643,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.options.cluster_name = _name
         midbc.options.auto_rejoin_tries = _tries
         midbc.options.expel_timeout = _expel_timeout
+        midbc.generate_ip_allowlist_str = lambda: _allowlist
         _script = (
             "shell.connect('{}:{}@{}')\n"
             "cluster = dba.create_cluster('{}', {{'autoRejoinTries': '{}', "
-            "'expelTimeout': '{}'}})"
+            "'expelTimeout': '{}', 'ipAllowlist': '{}'}})"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
                 midbc.cluster_address, midbc.cluster_name, _tries,
-                _expel_timeout))
+                _expel_timeout, _allowlist))
 
         midbc.create_cluster()
         _is_flag_set_calls = [
@@ -616,6 +671,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _local_addr = "10.10.50.50"
         _remote_addr = "10.10.60.60"
         _name = "theCluster"
+        _allowlist = '10.0.0.0/24'
         self.get_relation_ip.return_value = _local_addr
         self.get_relation_ip.return_value = _local_addr
         self.data = {"cluster-password": _pass}
@@ -629,17 +685,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.wait_until_connectable = mock.MagicMock()
         midbc.run_mysqlsh_script = mock.MagicMock()
         midbc.options.cluster_name = _name
+        midbc.is_address_in_replication_ip_allowlist = lambda x: True
+        midbc.generate_ip_allowlist_str = lambda: _allowlist
         _script = (
             "shell.connect('{}:{}@{}')\n"
             "cluster = dba.get_cluster('{}')\n"
             "cluster.add_instance("
             "{{'user': '{}', 'host': '{}', 'password': '{}', 'port': '3306'}},"
             "{{'recoveryMethod': 'clone', 'waitRecovery': '2', "
-            "'interactive': False}})"
+            "'interactive': False, 'ipAllowlist': '{}'}})"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
                 midbc.cluster_address, midbc.cluster_name,
-                midbc.cluster_user, _remote_addr, midbc.cluster_password))
+                midbc.cluster_user, _remote_addr, midbc.cluster_password,
+                _allowlist))
 
         midbc.add_instance_to_cluster(_remote_addr)
         self.is_flag_set.assert_called_once_with(
@@ -1087,6 +1146,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.get_cluster_status_summary = _status
         midbc.get_cluster_status_text = _status_text
         midbc.get_cluster_instance_mode = _status_mode
+        midbc.get_denied_peers = lambda: []
 
         midbc._assess_status()
         self.assertEqual(4, len(_check.mock_calls))
@@ -1480,6 +1540,49 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual(_string, midbc.set_cluster_option(_key, _value))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
+    def test_get_ip_allowlist_str_from_db(self):
+        mock_m_helper = mock.MagicMock()
+        mock_m_helper.select.return_value = [
+            ['group_replication_ip_allowlist', '10.0.0.10/24']]
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(
+            midbc.get_ip_allowlist_str_from_db(mock_m_helper),
+            '10.0.0.10/24')
+        mock_m_helper.select.assert_called_once_with(
+            "SHOW GLOBAL VARIABLES LIKE 'group_replication_ip_allowlist'")
+        mock_m_helper.select.return_value = []
+        with self.assertRaises(AssertionError):
+            midbc.get_ip_allowlist_str_from_db(mock_m_helper)
+
+    def test_get_ip_allowlist_list_from_db(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_rw_db_helper = mock.MagicMock(return_value=None)
+        midbc.get_ip_allowlist_str_from_db = \
+            lambda m_helper: '::1,10.0.0.20/24'
+        self.assertEqual(
+            midbc.get_ip_allowlist_list_from_db(),
+            ['::1', '10.0.0.20/24'])
+
+    def test_is_address_in_replication_ip_allowlist(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertTrue(midbc.is_address_in_replication_ip_allowlist(
+            '10.0.0.10',
+            ['127.0.0.1', '10.0.0.10/24']))
+
+    @mock.patch(('charm.openstack.mysql_innodb_cluster.'
+                 'MySQLInnoDBClusterCharm.cluster_peer_addresses'),
+                new_callable=mock.PropertyMock)
+    def test_get_denied_peers(self, cluster_peer_addresses):
+        def addr_in_list(addr, ip_allowlist):
+            return addr == '10.0.0.20'
+        cluster_peer_addresses.return_value = ['10.0.0.20', '10.20.0.20']
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_ip_allowlist_list_from_db = lambda: ['10.0.0.10/24']
+        midbc.is_address_in_replication_ip_allowlist = addr_in_list
+        self.assertEqual(
+            midbc.get_denied_peers(),
+            ['10.20.0.20'])
+
     def test_reboot_cluster_from_complete_outage(self):
         _pass = "clusterpass"
         _name = "theCluster"
@@ -1668,3 +1771,54 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.update_dotted_flags()
         self.leader_set.assert_called_once_with(_expected)
+
+    @mock.patch(('charm.openstack.mysql_innodb_cluster.'
+                 'MySQLInnoDBClusterCharm.cluster_peer_addresses'),
+                new_callable=mock.PropertyMock)
+    @mock.patch(('charm.openstack.mysql_innodb_cluster.'
+                 'MySQLInnoDBClusterCharm.cluster_address'),
+                new_callable=mock.PropertyMock)
+    def test_get_clustered_addresses(self, cluster_address,
+                                     cluster_peer_addresses):
+        _existing = {
+            "cluster-instance-clustered-10-5-0-10": True,
+            "cluster-instance-clustered-10-5-0-20": True,
+            "cluster-instance-clustered-10-5-0-30": False,
+            "key": "value",
+            "mysql.passwd": "must-not-change",
+            "cluster-instance-configured-10-5-0-40": True}
+        self.leader_get.side_effect = None
+        self.leader_get.return_value = _existing
+        cluster_address.return_value = '10.5.0.10'
+        cluster_peer_addresses.return_value = [
+            '10.5.0.20',
+            '10.5.0.30',
+            '10.5.0.40']
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(
+            midbc.get_clustered_addresses(),
+            ['10.5.0.20', '10.5.0.10'])
+
+    def test_update_acls(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.generate_ip_allowlist_str = lambda: '10.0.0.0/24'
+        midbc.get_clustered_addresses = lambda: ['10.0.0.10']
+        midbc.get_ip_allowlist_str_from_db = lambda x: '10.0.0.0/24'
+        midbc.wait_for_cluster_state = lambda x, y, z: None
+        m_helper_mock = mock.MagicMock()
+        self.patch_object(
+            mysql_innodb_cluster.mysql, "MySQL8Helper",
+            return_value=m_helper_mock)
+        midbc.update_acls()
+        self.assertFalse(m_helper_mock.execute.called)
+
+        # Test update needed
+        m_helper_mock.reset_mock()
+        midbc.generate_ip_allowlist_str = lambda: '10.0.0.0/24,10.10.0.0/24'
+        midbc.update_acls()
+        m_helper_mock.execute.assert_has_calls([
+            mock.call('STOP GROUP_REPLICATION'),
+            mock.call(
+                ("SET GLOBAL group_replication_ip_allowlist = "
+                 "'10.0.0.0/24,10.10.0.0/24'")),
+            mock.call('START GROUP_REPLICATION')])

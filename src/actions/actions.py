@@ -341,6 +341,16 @@ def set_cluster_option(args):
         ch_core.hookenv.action_fail("Set cluster option failed")
 
 
+def update_unit_acls(args):
+    """Update IP allow list on each node in cluster.
+
+    Update IP allow list on each node in cluster. At present this can only
+    be done when replication is stopped.
+    """
+    with charm.provide_charm_instance() as instance:
+        instance.update_acls()
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
 ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
@@ -351,10 +361,14 @@ ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
            "rejoin-instance": rejoin_instance,
            "add-instance": add_instance,
            "remove-instance": remove_instance,
-           "cluster-rescan": cluster_rescan}
+           "cluster-rescan": cluster_rescan,
+           "update-unit-acls": update_unit_acls}
 
 
 def main(args):
+    # Manually trigger any register atstart events to ensure all endpoints
+    # are correctly setup.
+    ch_core.hookenv._run_atstart()
     action_name = os.path.basename(args[0])
     try:
         action = ACTIONS[action_name]
@@ -370,6 +384,7 @@ def main(args):
                 "traceback": traceback.format_exc()})
             ch_core.hookenv.action_fail(
                 "{} action failed.".format(action_name))
+    ch_core.hookenv._run_atexit()
 
 
 if __name__ == "__main__":

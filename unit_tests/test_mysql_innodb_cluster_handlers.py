@@ -41,7 +41,9 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "local.cluster.user-created", "cluster.connected",),
                 "create_remote_cluster_user": ("cluster.available",),
                 "initialize_cluster": (
-                    "leadership.is_leader", "local.cluster.user-created",),
+                    "local.cluster.quorum-reached",
+                    "leadership.is_leader",
+                    "local.cluster.user-created",),
                 "configure_instances_for_clustering": (
                     "leadership.is_leader", "local.cluster.all-users-created",
                     "leadership.set.cluster-created", "cluster.available"),
@@ -83,6 +85,7 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "certificates.ca.changed",
                     "certificates.certs.changed",),
                 "scale_in": ("endpoint.cluster.departed",),
+                "check_quorum": ("cluster.available",),
 
             },
             "when_not": {
