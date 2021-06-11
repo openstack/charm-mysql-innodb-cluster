@@ -570,15 +570,16 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         leadership.leader_set({
             make_cluster_instance_configured_key(address): True})
 
-    def get_cluster_subnets(self):
-        """Return a list of subnets covering all units.
+    def get_cluster_addresses(self):
+        """Return a sorted list of addresses covering all units.
 
-        :returns: List of subnets
+        :returns: List of addresses
         :rtype: List
         """
         ips = self.cluster_peer_addresses
         ips.append(self.cluster_address)
-        return list(set([ch_net_ip.resolve_network_cidr(ip) for ip in ips]))
+        ips.append(ch_net_ip.resolve_network_cidr(self.cluster_address))
+        return sorted(ips)
 
     def generate_ip_allowlist_str(self):
         """Generate an ip allow list to permit all units to access each other.
@@ -590,7 +591,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :rtype: str
         """
         return "127.0.0.1,::1,{}".format(
-            ",".join(sorted(self.get_cluster_subnets())))
+            ",".join(self.get_cluster_addresses()))
 
     def reached_quorum(self):
         """Check if all peer units have joined.

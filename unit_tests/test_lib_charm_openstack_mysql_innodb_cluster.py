@@ -555,8 +555,8 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
     @mock.patch(('charm.openstack.mysql_innodb_cluster.'
                  'MySQLInnoDBClusterCharm.cluster_address'),
                 new_callable=mock.PropertyMock)
-    def test_get_cluster_subnets(self, cluster_address,
-                                 cluster_peer_addresses):
+    def test_get_cluster_addresses(self, cluster_address,
+                                   cluster_peer_addresses):
         self.patch_object(
             mysql_innodb_cluster.ch_net_ip,
             "resolve_network_cidr",
@@ -568,12 +568,13 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         cluster_address.return_value = '10.0.0.12'
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         self.assertEqual(
-            midbc.get_cluster_subnets(),
-            ['10.10.0.0/24', '10.0.0.0/24'])
+            midbc.get_cluster_addresses(),
+            ['10.0.0.0/24', '10.0.0.11', '10.0.0.12',
+             '10.0.0.13', '10.10.0.10'])
 
     def test_generate_ip_allowlist_str(self):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
-        midbc.get_cluster_subnets = lambda: ['10.0.0.10', '10.0.0.11']
+        midbc.get_cluster_addresses = lambda: ['10.0.0.10', '10.0.0.11']
         self.assertEqual(
             midbc.generate_ip_allowlist_str(),
             '127.0.0.1,::1,10.0.0.10,10.0.0.11')
