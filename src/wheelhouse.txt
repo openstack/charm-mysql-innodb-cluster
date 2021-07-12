@@ -1,6 +1,6 @@
 mysqlclient
 psutil
-tenacity
+tenacity<8.0.0
 
 git+https://github.com/openstack/charms.openstack.git#egg=charms.openstack
 
