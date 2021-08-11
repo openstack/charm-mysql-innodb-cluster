@@ -36,6 +36,15 @@ For a pre-existing keystone application:
 See [Infrastructure high availability][cdg-app-ha-mysql8] in the [OpenStack
 Charms Deployment Guide][cdg] for more deploy information.
 
+## Root password
+
+Passwords are automatically generated and stored by the application leader.
+
+The root password required to use the `mysql` or `mysqlsh` utilities locally on the
+units can be retrieved using the following command:
+
+    juju run --unit mysql-innodb-cluster/leader leader-get mysql.passwd
+
 ## TLS
 
 TLS communication between MySQL InnoDB Cluster and its cloud clients is
