@@ -60,12 +60,12 @@ See the [vault][vault-charm-readme] charm README for more information.
 
 ## Adding a unit on a new subnet
 
-If a new unit is added after the cluster has already formed and the new unit
-is on different subnet to any of the existing units then the following actions
-are needed to add the unit to the cluster:
+When adding a unit to an already formed cluster, and where that unit resides on
+a subnet different from any existing unit, the following extra actions are
+needed:
 
-    juju run-action mysql-innodb-cluster/leader update-unit-acls
-    juju run-action mysql-innodb-cluster/leader add-instance address=<address of new unit>
+    juju run-action --wait mysql-innodb-cluster/leader update-unit-acls
+    juju run-action --wait mysql-innodb-cluster/leader add-instance address=<address of new unit>
 
 ## Actions
 
