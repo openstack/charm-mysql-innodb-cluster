@@ -2,7 +2,7 @@ includes:
   - layer:coordinator
   - layer:leadership
   - layer:snap
-  - layer:openstack-principle
+  - layer:openstack
   - interface:mysql-shared
   - interface:mysql-router
   - interface:mysql-innodb-cluster
@@ -20,7 +20,6 @@ repo: https://opendev.org/openstack/charm-mysql-innodb-cluster
 config:
   deletes:
     - verbose
-    - openstack-origin
     - use-internal-endpoints
     - debug
     - use-syslog
