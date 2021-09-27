@@ -1,4 +1,4 @@
-series: hirsute
+series: impish
 applications:
   keystone-mysql-router:
     charm: cs:~openstack-charmers-next/mysql-router

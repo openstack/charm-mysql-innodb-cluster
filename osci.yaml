@@ -5,8 +5,9 @@
       jobs:
       - focal
       - full_model-focal-full-ha
-      - full_model-groovy-full-ha
       - full_model-hirsute-full-ha
+      - full_model-impish-full-ha:
+          voting: false
     vars:
       needs_charm_build: true
       charm_build_name: mysql-innodb-cluster
@@ -30,3 +31,9 @@
     dependencies: *smoke-jobs
     vars:
       tox_extra_args: full_model:hirsute-full-ha
+- job:
+    name: full_model-impish-full-ha
+    parent: func-target
+    dependencies: *smoke-jobs
+    vars:
+      tox_extra_args: full_model:impish-full-ha

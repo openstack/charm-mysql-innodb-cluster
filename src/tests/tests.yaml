@@ -28,20 +28,24 @@ tests:
 gate_bundles:
 - scale_in_out: focal
 - full_model: focal-full-ha
-- scale_in_out: groovy
-- full_model: groovy-full-ha
 
 smoke_bundles:
 - focal
 
 dev_bundles:
+- scale_in_out: groovy
+- full_model: groovy-full-ha
 - scale_in_out: hirsute
 - full_model: hirsute-full-ha
+- scale_in_out: impish
+- full_model: impish-full-ha
 
 tests_options:
   force_deploy:
-   - hirsute
-   - hirsute-full-ha
+   - groovy
+   - groovy-full-ha
+   - impish
+   - impish-full-ha
 
 target_deploy_status:
   neutron-api-plugin-ovn:
