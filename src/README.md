@@ -33,6 +33,10 @@ For a pre-existing keystone application:
     juju add-relation keystone-mysql-router:db-router mysql-innodb-cluster:db-router
     juju add-relation keystone-mysql-router:shared-db keystone:shared-db
 
+> **Important**: When network spaces are used, the mysql-router and
+  mysql-innodb-cluster charms must be configured such that the 'db-router'
+  endpoint is bound to the same space.
+
 See [Infrastructure high availability][cdg-app-ha-mysql8] in the [OpenStack
 Charms Deployment Guide][cdg] for more deploy information.
 
@@ -49,10 +53,9 @@ units can be retrieved using the following command:
 
 TLS communication between MySQL InnoDB Cluster and its cloud clients is
 supported out of the box via a self-signed CA certificate bundled within MySQL
-itself.
-
-A better option is to use a certificate signed by a Vault-based CA. This can be
-done once Vault has been initialised and has a root CA:
+itself. However, a better option is to use a certificate signed by a
+Vault-based CA. This can be done once Vault has been initialised and has a root
+CA:
 
     juju add-relation mysql-innodb-cluster:certificates vault:certificates
 
