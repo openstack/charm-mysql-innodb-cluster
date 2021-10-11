@@ -5,65 +5,80 @@ series: &series hirsute
 
 applications:
   keystone-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   nova-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   glance-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   neutron-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   placement-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   vault-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: cs:~openstack-charmers/mysql-router
+    channel: candidate
   mysql-innodb-cluster:
     charm: ../../../mysql-innodb-cluster
     num_units: 3
     options:
       source: *openstack-origin
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: cs:~openstack-charmers/keystone
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+    channel: candidate
   rabbitmq-server:
-    charm: cs:~openstack-charmers-next/rabbitmq-server
+    charm: cs:~openstack-charmers/rabbitmq-server
     num_units: 1
     options:
       source: *openstack-origin
+    channel: candidate
   vault:
-    charm: cs:~openstack-charmers-next/vault
+    charm: cs:~openstack-charmers/vault
     num_units: 1
+    channel: candidate
   ovn-central:
-    charm: cs:~openstack-charmers-next/ovn-central
+    charm: cs:~openstack-charmers/ovn-central
     num_units: 3
     options:
       source: *openstack-origin
+    channel: candidate
   neutron-api-plugin-ovn:
-    charm: cs:~openstack-charmers-next/neutron-api-plugin-ovn
+    charm: cs:~openstack-charmers/neutron-api-plugin-ovn
+    channel: candidate
   neutron-api:
-    charm: cs:~openstack-charmers-next/neutron-api
+    charm: cs:~openstack-charmers/neutron-api
     series: *series
     num_units: 1
     options:
       flat-network-providers: physnet1
       neutron-security-groups: true
       openstack-origin: *openstack-origin
+    channel: candidate
   glance:
-    charm: cs:~openstack-charmers-next/glance
+    charm: cs:~openstack-charmers/glance
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+    channel: candidate
   nova-cloud-controller:
-    charm: cs:~openstack-charmers-next/nova-cloud-controller
+    charm: cs:~openstack-charmers/nova-cloud-controller
     num_units: 1
     options:
       network-manager: Neutron
       openstack-origin: *openstack-origin
+    channel: candidate
   ovn-chassis:
-    charm: cs:~openstack-charmers-next/ovn-chassis
+    charm: cs:~openstack-charmers/ovn-chassis
+    channel: candidate
   nova-compute:
-    charm: cs:~openstack-charmers-next/nova-compute
+    charm: cs:~openstack-charmers/nova-compute
     num_units: 1
     options:
       config-flags: default_ephemeral_format=ext4
@@ -71,11 +86,13 @@ applications:
       enable-resize: true
       migration-auth-type: ssh
       openstack-origin: *openstack-origin
+    channel: candidate
   placement:
-    charm: cs:~openstack-charmers-next/placement
+    charm: cs:~openstack-charmers/placement
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+    channel: candidate
   memcached:
     charm: cs:memcached
     num_units: 1
