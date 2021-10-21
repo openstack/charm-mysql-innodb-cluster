@@ -2,21 +2,17 @@ series: impish
 applications:
   keystone-mysql-router:
     charm: cs:~openstack-charmers/mysql-router
-    channel: candidate
   vault-mysql-router:
     charm: cs:~openstack-charmers/mysql-router
-    channel: candidate
   mysql-innodb-cluster:
     charm: ../../../mysql-innodb-cluster
     num_units: 3
   keystone:
     charm: cs:~openstack-charmers/keystone
     num_units: 1
-    channel: candidate
   vault:
     charm: cs:~openstack-charmers/vault
     num_units: 1
-    channel: candidate
 relations:
   - - vault:certificates
     - mysql-innodb-cluster:certificates
