@@ -79,5 +79,6 @@ update-unit-acls:
      new subnet. In this case *group_replication_ip_allowlist* need updating to
      include the subnet. Run *add-instance* to add in the new unit once this
      action succesfully completes.
-     WARNING Group replication is stopped on each unit to allow the update to
-     happen.
+     WARNING When this action is run, group replication is stopped, the acls
+     updated and the group replication is started again. Group replication
+     should be running after this action has completed.
