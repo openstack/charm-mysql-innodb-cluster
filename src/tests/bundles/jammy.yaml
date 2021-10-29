@@ -1,11 +1,10 @@
-series: groovy
+series: jammy
 applications:
   keystone-mysql-router:
     charm: cs:~openstack-charmers-next/mysql-router
   vault-mysql-router:
     charm: cs:~openstack-charmers-next/mysql-router
   mysql-innodb-cluster:
-    series: groovy
     charm: ../../../mysql-innodb-cluster
     num_units: 3
   keystone:
