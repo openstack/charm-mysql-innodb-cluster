@@ -31,6 +31,8 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
         hook_set = {
             "hook": {
                 "custom_upgrade_charm": ("upgrade-charm",),
+                "db_monitor_respond":
+                    ("db-monitor-relation-{joined,changed}",),
             },
             "when": {
                 "leader_install": (
@@ -86,7 +88,11 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "certificates.certs.changed",),
                 "scale_in": ("endpoint.cluster.departed",),
                 "check_quorum": ("cluster.available",),
-
+                "db_monitor_respond": (
+                    "leadership.is_leader",
+                    "leadership.set.cluster-instances-clustered",
+                    "db-monitor.connected",
+                )
             },
             "when_not": {
                 "leader_install": ("charm.installed",),
@@ -122,6 +128,8 @@ class TestRegisteredHooks(test_utils.TestRegisteredHooks):
                     "charm.paused", "local.cluster.unit.departing",),
                 "db_router_respond": (
                     "charm.paused", "local.cluster.unit.departing",),
+                "db_monitor_respond": (
+                    "charm.paused", "local.cluster.unit.departing",),
             },
         }
         # test that the hooks were registered via the
@@ -138,6 +146,7 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.midbc = mock.MagicMock()
         self.midbc.cluster_name = "jujuCluster"
         self.midbc.cluster_address = "10.10.10.10"
+        self.midbc.cluster_port = 1234
         self.midbc.cluster_user = "clusteruser"
         self.midbc.cluster_password = "clusterpass"
         self.patch_object(handlers.charm, "provide_charm_instance",
@@ -145,6 +154,7 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.provide_charm_instance().__enter__.return_value = (
             self.midbc)
         self.provide_charm_instance().__exit__.return_value = None
+        self.patch_object(handlers.leadership, "leader_get")
         self.patch_object(handlers.leadership, "leader_set")
         self.patch_object(handlers.reactive, "is_flag_set")
         self.patch_object(handlers.reactive, "set_flag")
@@ -160,6 +170,10 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         self.data = {}
         self.patch_object(handlers.reactive, "endpoint_from_flag",
                           new=mock.MagicMock())
+        self.patch_object(mysql_innodb_cluster.ch_core.host, "pwgen")
+        self.patch_object(mysql_innodb_cluster.ch_core.hookenv,
+                          "remote_service_name")
+        self.patch_object(mysql_innodb_cluster.ch_net_ip, "get_relation_ip")
 
     def _fake_data(self, key):
         return self.data.get(key)
@@ -304,3 +318,20 @@ class TestMySQLInnoDBClusterHandlers(test_utils.PatchHelper):
         handlers.db_router_respond()
         self.midbc.create_databases_and_users.assert_called_once_with(
             self.db_router)
+
+    def test_db_monitor_relation_changed(self):
+        """Test db-monitor relation changed hook."""
+        self.get_relation_ip.return_value = "10.10.10.10"
+        self.pwgen.return_value = "db-monitor-passwd"
+        self.remote_service_name.return_value = "telegraf"
+        self.endpoint_from_flag.return_value = mock_db_monitor = \
+            mock.MagicMock()
+        self.leader_get.return_value = None
+        handlers.db_monitor_respond()
+        mock_db_monitor.provide_access.assert_called_once_with(
+            port=1234,
+            user="telegraf",
+            password="db-monitor-passwd",
+        )
+        self.leader_set.assert_called_once_with(
+            {"db-monitor.telegraf.passwd": "db-monitor-passwd"})

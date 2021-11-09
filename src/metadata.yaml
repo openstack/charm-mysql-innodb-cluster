@@ -15,6 +15,9 @@ provides:
     interface: mysql-shared
   db-router:
     interface: mysql-router
+  db-monitor:
+    interface: mysql-monitor
+    scope: container
 peers:
   cluster:
     interface: mysql-innodb-cluster

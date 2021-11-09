@@ -460,6 +460,34 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             password=midbc.cluster_password,
             host=_addr)
 
+    def test_grant_cluster_user_permissions(self):
+        _user = "user"
+        _addr = "10.10.20.20"
+        mock_helper = mock.MagicMock()
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+
+        # All privileges
+        midbc._grant_cluster_user_privileges(mock_helper, _addr, _user, False)
+        mock_helper.execute.assert_has_calls([
+            mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
+                      .format(_user, _addr)),
+            mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}' "
+                      "WITH GRANT OPTION".format(_user, _addr)),
+            mock.call("FLUSH PRIVILEGES"),
+        ])
+        mock_helper.reset_mock()
+
+        # read-only privileges
+        midbc._grant_cluster_user_privileges(mock_helper, _addr, _user, True)
+        mock_helper.execute.assert_has_calls([
+            mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
+                      .format(_user, _addr)),
+            mock.call("GRANT SELECT, SHOW VIEW ON *.* TO '{}'@'{}'"
+                      .format(_user, _addr)),
+            mock.call("FLUSH PRIVILEGES"),
+        ])
+        mock_helper.reset_mock()
+
     def test_create_cluster_user(self):
         _user = "user"
         _pass = "pass"
@@ -474,11 +502,11 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _calls = [
             mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
                       .format(_user, _addr, _pass)),
-            mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}'"
+            mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
                       .format(_user, _addr)),
-            mock.call("GRANT GRANT OPTION ON *.* TO '{}'@'{}'"
-                      .format(_user, _addr)),
-            mock.call("flush privileges")]
+            mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}' "
+                      "WITH GRANT OPTION".format(_user, _addr)),
+            mock.call("FLUSH PRIVILEGES")]
         _helper.execute.assert_has_calls(
             _calls, any_order=True)
 
@@ -490,11 +518,24 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _calls = [
             mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
                       .format(_user, _localhost, _pass)),
-            mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}'"
+            mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
                       .format(_user, _localhost)),
-            mock.call("GRANT GRANT OPTION ON *.* TO '{}'@'{}'"
+            mock.call("GRANT ALL PRIVILEGES ON *.* TO '{}'@'{}' "
+                      "WITH GRANT OPTION".format(_user, _localhost)),
+            mock.call("FLUSH PRIVILEGES")]
+        _helper.execute.assert_has_calls(
+            _calls, any_order=True)
+
+        # Read only privileges
+        midbc.create_cluster_user(_localhost, _user, _pass, read_only=True)
+        _calls = [
+            mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
+                      .format(_user, _localhost, _pass)),
+            mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
                       .format(_user, _localhost)),
-            mock.call("flush privileges")]
+            mock.call("GRANT SELECT, SHOW VIEW ON *.* TO '{}'@'{}'"
+                      .format(_user, _localhost)),
+            mock.call("FLUSH PRIVILEGES")]
         _helper.execute.assert_has_calls(
             _calls, any_order=True)
 
@@ -505,8 +546,12 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
 
         # User Exists
         _helper.reset_mock()
-        _helper.execute.side_effect = (
-            self._exceptions.OperationalError(1396, "User exists"))
+        _helper.execute.side_effect = [
+            self._exceptions.OperationalError(1396, "User exists"),
+            mock.MagicMock(),  # revoke all privileges
+            mock.MagicMock(),  # gran privileges
+            mock.MagicMock(),  # flush privileges
+        ]
         self.assertTrue(midbc.create_cluster_user(_localhost, _user, _pass))
 
         # Read only node

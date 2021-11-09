@@ -429,7 +429,7 @@ def scale_in():
 
     If this is the node departing, stop services and notify peers. If this is
     the leader node and not the departing node, attempt to remove the instance
-    from cluster metadata.
+    from cluster metdata.
     """
     # Intentionally using the charm helper rather than the interface to
     # guarantee we get only the departing instance's cluster-address
@@ -478,3 +478,42 @@ def scale_in():
                     "{_du}. No cluster-address provided. Run remove-instance "
                     "address={_du} to clear cluster metadata and flags."
                     .format(_du=_departing_unit), "WARNING")
+
+
+@reactive.when("leadership.is_leader")
+@reactive.when("leadership.set.cluster-instances-clustered")
+@reactive.when("db-monitor.connected")
+@reactive.when_none("charm.paused", "local.cluster.unit.departing")
+def db_monitor_respond():
+    """Response to db-monitor relation changed."""
+    ch_core.hookenv.log("db-monitor connected", ch_core.hookenv.DEBUG)
+    db_monitor = reactive.endpoint_from_flag("db-monitor.connected")
+
+    # get related application name = user
+    username = related_app = ch_core.hookenv.remote_service_name()
+
+    # get or create db-monitor user password
+    db_monitor_stored_passwd_key = "db-monitor.{}.passwd".format(related_app)
+    password = leadership.leader_get(db_monitor_stored_passwd_key)
+    if not password:
+        password = ch_core.host.pwgen()
+        leadership.leader_set({db_monitor_stored_passwd_key: password})
+
+    # provide relation data
+    with charm.provide_charm_instance() as instance:
+        # NOTE (rgildein): Create a custom user with administrator privileges,
+        # but read-only access.
+        if not instance.create_cluster_user(
+                db_monitor.relation_ip, username, password, True
+        ):
+            ch_core.hookenv.log("db-monitor user was not created.",
+                                ch_core.hookenv.WARNING)
+            return
+
+        db_monitor.provide_access(
+            port=instance.cluster_port,
+            user=username,
+            password=password,
+        )
+
+        instance.assess_status()

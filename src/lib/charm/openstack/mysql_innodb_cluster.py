@@ -451,15 +451,65 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             host=self.get_cluster_primary_address(nocache=True))
         return _helper
 
+    @staticmethod
+    def _grant_cluster_user_privileges(m_helper, address, user, read_only):
+        """Grant privileges for cluster user.
+
+        :param m_helper: connected RW instance of the MySQLDB8Helper class
+        :type m_helper: Instance of MySQLDB8Helper class
+        :param address: address for which privileges will be granted
+        :type address: str
+        :param user: Cluster user's username
+        :type user: str
+        :param read_only: Grand read-only permissions [False]
+        :type read_only: bool
+        :side effect: Executes SQL to revoke and grand privileges for user
+        """
+        sql_grant = "GRANT {permissions} ON *.* TO '{user}'@'{host}'"
+        sql_revoke = "REVOKE ALL PRIVILEGES ON *.* FROM '{user}'@'{host}'"
+        if read_only:
+            permissions = "SELECT, SHOW VIEW"
+        else:
+            permissions = "ALL PRIVILEGES"
+            # NOTE (rgildein): The WITH GRANT OPTION clause gives the user the
+            # ability to give to other users any privileges the user has at the
+            # specified privilege level.
+            sql_grant += " WITH GRANT OPTION"
+
+        ch_core.hookenv.log(
+            "Revoke all privileges for use '{user}'@'{host}'".format(
+                user=user, host=address
+            ),
+            ch_core.hookenv.DEBUG)
+        m_helper.execute(sql_revoke.format(user=user, host=address))
+
+        ch_core.hookenv.log(
+            "Grant {permissions} for use '{user}'@'{host}'".format(
+                permissions=permissions,
+                user=user,
+                host=address
+            ),
+            ch_core.hookenv.DEBUG)
+        m_helper.execute(sql_grant.format(
+            permissions=permissions, user=user, host=address
+        ))
+
+        m_helper.execute("FLUSH PRIVILEGES")
+
     def create_cluster_user(
-            self, cluster_address, cluster_user, cluster_password):
+            self,
+            cluster_address,
+            cluster_user,
+            cluster_password,
+            read_only=False
+    ):
         """Create cluster user and grant permissions in the MySQL DB.
 
         This user will be used by the leader for instance configuration and
         initial cluster creation.
 
-        The grants are specfic to cluster creation and management as documented
-        upstream.
+        The grants are specific to cluster creation and management as
+        documented upstream.
 
         :param cluster_address: Cluster user's address
         :type cluster_address: str
@@ -467,6 +517,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type cluster_user: str
         :param cluster_password: Cluster user's password
         :type cluster_password: str
+        :param read_only: Grand read-only permissions [False]
+        :type read_only: bool
         :side effect: Executes SQL to create DB user
         :returns: True if successful, False if there are failures
         :rtype: Boolean
@@ -474,10 +526,6 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         SQL_CLUSTER_USER_CREATE = (
             "CREATE USER '{user}'@'{host}' "
             "IDENTIFIED BY '{password}'")
-
-        SQL_CLUSTER_USER_GRANT = (
-            "GRANT {permissions} ON *.* "
-            "TO '{user}'@'{host}'")
 
         addresses = [cluster_address]
         if cluster_address in self.cluster_address:
@@ -497,18 +545,9 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     host=address,
                     password=cluster_password)
                 )
-                m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
-                    permissions="ALL PRIVILEGES",
-                    user=cluster_user,
-                    host=address)
+                self._grant_cluster_user_privileges(
+                    m_helper, address, cluster_user, read_only
                 )
-                m_helper.execute(SQL_CLUSTER_USER_GRANT.format(
-                    permissions="GRANT OPTION",
-                    user=cluster_user,
-                    host=address)
-                )
-
-                m_helper.execute("flush privileges")
             except mysql.MySQLdb._exceptions.OperationalError as e:
                 if e.args[0] == self._read_only_error:
                     ch_core.hookenv.log(
@@ -521,6 +560,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                     ch_core.hookenv.log(
                         "User {} exists."
                         .format(cluster_user), "WARNING")
+                    # NOTE (rgildein): This is necessary to ensure that the
+                    # existing user has the correct privileges.
+                    self._grant_cluster_user_privileges(
+                        m_helper, address, cluster_user, read_only
+                    )
                     continue
                 else:
                     raise

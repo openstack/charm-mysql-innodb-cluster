@@ -6,10 +6,11 @@ includes:
   - interface:mysql-shared
   - interface:mysql-router
   - interface:mysql-innodb-cluster
+  - interface:mysql-monitor
 options:
   basic:
     use_venv: True
-    packages: [ 'libmysqlclient-dev']
+    packages: ['libmysqlclient-dev']
   snap:
     mysql-shell:
       channel: stable
