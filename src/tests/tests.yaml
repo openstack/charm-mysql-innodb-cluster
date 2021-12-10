@@ -34,7 +34,7 @@ gate_bundles:
 - full_model: impish-full-ha
 
 smoke_bundles:
-- full_model: focal
+- focal
 
 dev_bundles:
 - scale_in_out: jammy
