@@ -1,69 +1,86 @@
 variables:
   openstack-origin: &openstack-origin distro-proposed
 
+local_overlay_enabled: False
+
 series: &series focal
 
 applications:
   keystone-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   nova-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   glance-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   neutron-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   placement-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   vault-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   mysql-innodb-cluster:
-    charm: ../../../mysql-innodb-cluster
+    charm: ../../../mysql-innodb-cluster.charm
     num_units: 3
     options:
       source: *openstack-origin
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: ch:keystone
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+    channel: latest/edge
   rabbitmq-server:
-    charm: cs:~openstack-charmers-next/rabbitmq-server
+    charm: ch:rabbitmq-server
     num_units: 1
     options:
       source: *openstack-origin
+    channel: latest/edge
   vault:
-    charm: cs:~openstack-charmers-next/vault
+    charm: ch:vault
     num_units: 1
+    channel: latest/edge
   ovn-central:
-    charm: cs:~openstack-charmers-next/ovn-central
+    charm: ch:ovn-central
     num_units: 3
     options:
       source: *openstack-origin
+    channel: latest/edge
   neutron-api-plugin-ovn:
-    charm: cs:~openstack-charmers-next/neutron-api-plugin-ovn
+    charm: ch:neutron-api-plugin-ovn
+    channel: latest/edge
   neutron-api:
-    charm: cs:~openstack-charmers-next/neutron-api
+    charm: ch:neutron-api
     series: *series
     num_units: 1
     options:
       flat-network-providers: physnet1
       neutron-security-groups: true
       openstack-origin: *openstack-origin
+    channel: latest/edge
   glance:
-    charm: cs:~openstack-charmers-next/glance
+    charm: ch:glance
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+    channel: latest/edge
   nova-cloud-controller:
-    charm: cs:~openstack-charmers-next/nova-cloud-controller
+    charm: ch:nova-cloud-controller
     num_units: 1
     options:
       network-manager: Neutron
       openstack-origin: *openstack-origin
+    channel: latest/edge
   ovn-chassis:
-    charm: cs:~openstack-charmers-next/ovn-chassis
+    charm: ch:ovn-chassis
+    channel: latest/edge
   nova-compute:
-    charm: cs:~openstack-charmers-next/nova-compute
+    charm: ch:nova-compute
     num_units: 1
     options:
       config-flags: default_ephemeral_format=ext4
@@ -71,11 +88,13 @@ applications:
       enable-resize: true
       migration-auth-type: ssh
       openstack-origin: *openstack-origin
+    channel: latest/edge
   placement:
-    charm: cs:~openstack-charmers-next/placement
+    charm: ch:placement
     num_units: 1
     options:
       openstack-origin: *openstack-origin
+    channel: latest/edge
   memcached:
     charm: cs:memcached
     num_units: 1

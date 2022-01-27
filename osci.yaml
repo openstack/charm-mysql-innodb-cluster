@@ -1,11 +1,11 @@
 - project:
     templates:
-      - charm-yoga-unit-jobs
+      - charm-unit-jobs-py38
+      - charm-unit-jobs-py39
     check:
       jobs:
       - focal
       - full_model-focal-full-ha
-      - full_model-hirsute-full-ha
       - full_model-impish-full-ha:
           voting: false
       - full_model-jammy-full-ha:
@@ -13,29 +13,26 @@
     vars:
       needs_charm_build: true
       charm_build_name: mysql-innodb-cluster
+      build_type: charmcraft
 
 - job:
     name: full_model-focal-full-ha
     parent: func-target
-    dependencies: &smoke-jobs
-        - focal
+    dependencies:
+      - focal
     vars:
       tox_extra_args: full_model:focal-full-ha
 - job:
-    name: full_model-hirsute-full-ha
-    parent: func-target
-    dependencies: *smoke-jobs
-    vars:
-      tox_extra_args: full_model:hirsute-full-ha
-- job:
     name: full_model-impish-full-ha
     parent: func-target
-    dependencies: *smoke-jobs
+    dependencies:
+      - focal
     vars:
       tox_extra_args: full_model:impish-full-ha
 - job:
     name: full_model-jammy-full-ha
     parent: func-target
-    dependencies: *smoke-jobs
+    dependencies:
+      - focal
     vars:
       tox_extra_args: full_model:jammy-full-ha

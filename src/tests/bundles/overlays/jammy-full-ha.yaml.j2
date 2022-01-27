@@ -8,9 +8,11 @@ applications:
     options:
       vip: {{TEST_VIP01}}
   keystone-hacluster:
-    charm: cs:~openstack-charmers-next/hacluster
+    charm: ch:hacluster
+    channel: latest/edge
   nova-hacluster:
-    charm: cs:~openstack-charmers-next/hacluster
+    charm: ch:hacluster
+    channel: latest/edge
 relations:
 - ["keystone:ha", "keystone-hacluster:ha"]
 - ["nova-cloud-controller:ha", "nova-hacluster:ha"]

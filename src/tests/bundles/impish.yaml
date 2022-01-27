@@ -1,18 +1,24 @@
+local_overlay_enabled: False
+
 series: impish
 applications:
   keystone-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   vault-mysql-router:
-    charm: cs:~openstack-charmers-next/mysql-router
+    charm: ch:mysql-router
+    channel: latest/edge
   mysql-innodb-cluster:
-    charm: ../../../mysql-innodb-cluster
+    charm: ../../../mysql-innodb-cluster.charm
     num_units: 3
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: ch:keystone
     num_units: 1
+    channel: latest/edge
   vault:
-    charm: cs:~openstack-charmers-next/vault
+    charm: ch:vault
     num_units: 1
+    channel: latest/edge
 relations:
   - - vault:certificates
     - mysql-innodb-cluster:certificates
