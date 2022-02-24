@@ -11,3 +11,4 @@ README.ex
 src/tests/mysqlsh.snap
 src/tests/bundles/overlays/local-charm-overlay.yaml.j2
 manual-attach.sh
+*.charm
