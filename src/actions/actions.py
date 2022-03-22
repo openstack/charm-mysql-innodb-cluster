@@ -214,7 +214,7 @@ def rejoin_instance(args):
     existing cluster member.
 
     Note: This action must be run on an instance that is already a member of
-    the cluster. The action parameter, address, is the addresss of the instance
+    the cluster. The action parameter, address, is the address of the instance
     that is being joined to the cluster.
 
     :param args: sys.argv
