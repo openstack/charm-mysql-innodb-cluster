@@ -351,6 +351,23 @@ def update_unit_acls(args):
         instance.update_acls()
 
 
+def restore_quorum(args):
+    """Restore quorum and rejoin instance.
+
+    In the event of blocked cluster with no quorum, this action will
+    force quorum and rejoin the instance to the cluster.
+
+    :param args: sys.argv
+    :type args: sys.argv
+    :side effect: Calls instance.restore_quorum
+    :returns: This function is called for its side effect
+    :rtype: None
+    :action return: Dictionary with command output
+    """
+    with charm.provide_charm_instance() as instance:
+        instance.restore_quorum()
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
 ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,

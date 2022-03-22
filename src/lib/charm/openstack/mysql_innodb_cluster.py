@@ -1743,6 +1743,36 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             restore.communicate(input=_sql.read())
         restore.wait()
 
+    def restore_quorum(self):
+        """Restore cluster quorum.
+
+        Executes cluster.force_quorum_using_partition_of to restore quorum.
+        and rejoin instance to the cluster.
+
+        :side effect: Calls self.run_mysqlsh_script
+        :returns: This function is called for its side effect
+        :rtype: None
+        """
+        _script = (
+            "shell.connect('{user}:{pw}@{caddr}')\n"
+            "cluster = dba.get_cluster('{name}')\n"
+            "cluster.force_quorum_using_partition_of('{user}:{pw}@{caddr}')\n"
+            "cluster.rejoin_instance('{user}:{pw}@{caddr}')"
+            .format(
+                user=self.cluster_user, pw=self.cluster_password,
+                caddr=self.cluster_address, name=self.cluster_name))
+        try:
+            output = self.run_mysqlsh_script(_script)
+            ch_core.hookenv.log(
+                "Restore quorom command successful: "
+                "{}".format(output),
+                level="DEBUG")
+            return output
+        except subprocess.CalledProcessError as e:
+            ch_core.hookenv.log(
+                "Failed to restore quorum: {}".format(e.output),
+                "ERROR")
+
     @property
     def cluster_peer_addresses(self):
         """Cluster peer addresses

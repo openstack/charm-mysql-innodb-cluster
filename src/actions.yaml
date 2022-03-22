@@ -88,3 +88,7 @@ update-unit-acls:
      WARNING When this action is run, group replication is stopped, the acls
      updated and the group replication is started again. Group replication
      should be running after this action has completed.
+restore-quorum:
+  description: |
+      Restores the cluster to a quorum state when stuck with no possibility to
+      write transactions by using *force_quorum_using_partition_of*.
