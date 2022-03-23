@@ -379,7 +379,8 @@ ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
            "add-instance": add_instance,
            "remove-instance": remove_instance,
            "cluster-rescan": cluster_rescan,
-           "update-unit-acls": update_unit_acls}
+           "update-unit-acls": update_unit_acls,
+           "restore-quorum": restore_quorum}
 
 
 def main(args):
