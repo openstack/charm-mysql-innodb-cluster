@@ -85,6 +85,7 @@ If the charm is not deployed then see file `actions.yaml`.
 * `rejoin-instance`
 * `remove-instance`
 * `restore-mysqldump`
+* `restore-quorum`
 * `set-cluster-option`
 * `update-unit-acls`
 
