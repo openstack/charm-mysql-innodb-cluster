@@ -1635,6 +1635,33 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual(_string, midbc.rejoin_instance(_remote_addr))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
 
+    def test_restore_quorum(self):
+        _pass = "clusterpass"
+        _name = "theCluster"
+        _string = "status output"
+        _local_addr = "10.10.50.50"
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock(
+            return_value=_local_addr)
+        midbc.options.cluster_name = _name
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.return_value = _pass
+
+        _script = (
+            "shell.connect('{}:{}@{}')\n"
+            "cluster = dba.get_cluster('{}')\n"
+            "cluster.force_quorum_using_partition_of('{}:{}@{}')"
+            .format(
+                midbc.cluster_user, midbc.cluster_password,
+                midbc.cluster_address, midbc.options.cluster_name,
+                midbc.cluster_user, midbc.cluster_password,
+                midbc.cluster_address))
+        self.assertEqual(_string, midbc.restore_quorum())
+        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+
     def test_remove_instance(self):
         _pass = "clusterpass"
         _name = "theCluster"
