@@ -355,7 +355,7 @@ def restore_quorum(args):
     """Restore quorum and rejoin instance.
 
     In the event of blocked cluster with no quorum, this action will
-    force quorum and rejoin the instance to the cluster.
+    force quorum to be derived from the instance.
 
     :param args: sys.argv
     :type args: sys.argv
@@ -366,6 +366,10 @@ def restore_quorum(args):
     """
     with charm.provide_charm_instance() as instance:
         instance.restore_quorum()
+    ch_core.hookenv.action_set({
+        "output": "Quorum restored. You can now rejoin other instances.",
+        "outcome": "Success"}
+    )
 
 
 # A dictionary of all the defined actions to callables (which take

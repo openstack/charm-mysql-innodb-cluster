@@ -90,5 +90,10 @@ update-unit-acls:
      should be running after this action has completed.
 restore-quorum:
   description: |
-      Restores the cluster to a quorum state when stuck with no possibility to
-      write transactions by using *force_quorum_using_partition_of*.
+      Restores the cluster back into operational status from a loss of quorum
+      scenario. The quorum will be derived from the instance where the action
+      is triggered. *Note* This operation is DANGEROUS as it can create a 
+      split-brain if incorrectly used and should be considered a last resort.
+      Make absolutely sure that there are no partitions of this group that are
+      still operating somewhere in the network, but not accessible from the
+      instance location.

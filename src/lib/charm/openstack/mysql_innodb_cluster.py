@@ -1753,20 +1753,19 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :returns: This function is called for its side effect
         :rtype: None
         """
+        ch_core.hookenv.log("Running restore-quorum action", level="INFO")
         _script = (
             "shell.connect('{user}:{pw}@{caddr}')\n"
             "cluster = dba.get_cluster('{name}')\n"
-            "cluster.force_quorum_using_partition_of('{user}:{pw}@{caddr}')\n"
-            "cluster.rejoin_instance('{user}:{pw}@{caddr}')"
+            "cluster.force_quorum_using_partition_of('{user}:{pw}@{caddr}')"
             .format(
                 user=self.cluster_user, pw=self.cluster_password,
                 caddr=self.cluster_address, name=self.cluster_name))
         try:
-            output = self.run_mysqlsh_script(_script)
+            output = self.run_mysqlsh_script(_script).decode("UTF-8")
             ch_core.hookenv.log(
-                "Restore quorom command successful: "
-                "{}".format(output),
-                level="DEBUG")
+                "Restore quorum command successful.",
+                level="INFO")
             return output
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
