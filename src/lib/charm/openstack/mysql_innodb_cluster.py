@@ -1119,7 +1119,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             _status = self.get_cluster_status(nocache=nocache)
         if not _status:
             return
-        # Return addresss without port number
+        # Return address without port number
         if ":" in _status['groupInformationSourceMember']:
             return _status['groupInformationSourceMember'][:-5]
         return _status['groupInformationSourceMember']
@@ -1128,7 +1128,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         """Get cluster status summary
 
         Return cluster.status()["defaultReplicaSet"]["status"]. This will be
-        "OK" if the cluster is healhty. If cached data exists and is not
+        "OK" if the cluster is healthy. If cached data exists and is not
         explicity avoided with the nocache parameter, avoid the call to
         self.get_cluster_status.
 
