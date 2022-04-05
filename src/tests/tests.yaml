@@ -27,9 +27,9 @@ tests:
 
 gate_bundles:
 - scale_in_out: focal
-- scale_in_out: impish
+- scale_in_out: jammy
 - full_model: focal-full-ha
-- full_model: impish-full-ha
+- full_model: jammy-full-ha
 
 smoke_bundles:
 - focal
@@ -40,8 +40,8 @@ dev_bundles:
 
 tests_options:
   force_deploy:
-    - impish
-    - impish-full-ha
+    - jammy
+    - jammy-full-ha
     - jammy
     - jammy-full-ha
 
