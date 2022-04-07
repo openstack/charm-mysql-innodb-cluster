@@ -67,7 +67,7 @@ add-instance:
   required:
     - address
   description: |
-     Configure and add an instnace to the cluster. *Note* This action must be
+     Configure and add an instance to the cluster. *Note* This action must be
      run on an instance that is a functioning member of the cluster.
 set-cluster-option:
   params:
