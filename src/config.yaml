@@ -37,6 +37,15 @@ options:
       for more information.
       https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-expel.html
       https://dev.mysql.com/doc/refman/8.0/en/group-replication-options.html#sysvar_group_replication_member_expel_timeout
+  group-replication-message-cache-size:
+    type: string
+    default:
+    description: |
+      By default this value will be set as 1G. For nodes with strict memory requirements,
+      this number can be chosen as a lower value. Supported suffixes include K/M/G/T.
+      See the MySQL documentation for the allowed maximum and minimum values
+      for this option for different versions and for more information.
+      https://dev.mysql.com/doc/refman/8.0/en/group-replication-options.html#sysvar_group_replication_message_cache_size
   innodb-buffer-pool-size:
     type: string
     default:
