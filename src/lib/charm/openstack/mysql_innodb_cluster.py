@@ -127,7 +127,7 @@ def innodb_flush_log_at_trx_commit_adapter(cls):
 
 @charms_openstack.adapters.config_property
 def innodb_change_buffering_adapter(cls):
-    """Determine the value for innodb_flush_log_at_trx_commit.
+    """Determine the value for innodb_change_buffering.
 
     Call the MySQLConfigHelper get_innodb_change_buffering helper to get the
     value for innodb_change_buffering.
@@ -142,10 +142,10 @@ def innodb_change_buffering_adapter(cls):
 
 @charms_openstack.adapters.config_property
 def innodb_buffer_pool_size_adapter(cls):
-    """Determine the value for innodb_flush_log_at_trx_commit.
+    """Determine the value for innodb_buffer_pool_size.
 
     Call the MySQLConfigHelper innodb_buffer_pool_size helper to get the value
-    for innodb_buffer_pool_size_adapter.
+    for innodb_buffer_pool_size.
 
     :param cls: Class
     :type cls: ConfigurationAdapter class
