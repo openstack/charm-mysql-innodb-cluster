@@ -132,6 +132,11 @@ innodb_change_buffering = {{ options.innodb_change_buffering_adapter }}
 innodb_io_capacity = {{ options.innodb_io_capacity }}
 {% endif %}
 
+{% if options.group_replication_message_cache_size -%}
+plugin_load = group_replication.so
+group_replication_message_cache_size = {{ options.group_replication_message_cache_size_adapter }}
+{% endif %}
+
 {% if options.tls_enabled -%}
 #tls_version=TLSv1.2,TLSv1.3
 ssl_ca=/etc/ssl/certs/ca-certificates.crt

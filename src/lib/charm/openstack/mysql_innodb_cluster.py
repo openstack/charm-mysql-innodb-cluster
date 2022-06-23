@@ -156,6 +156,22 @@ def innodb_buffer_pool_size_adapter(cls):
 
 
 @charms_openstack.adapters.config_property
+def group_replication_message_cache_size_adapter(cls):
+    """Determine the value for group_replication_message_cache_size.
+
+    Call the MySQLConfigHelper get_group_replication_message_cache_size
+    helper to get the value for group_replication_message_cache_size.
+
+    :param cls: Class
+    :type cls: ConfigurationAdapter class
+    :returns: Numeric group_replication_message_cache_size value
+    :rtype: int
+    """
+    return mysql.get_mysql_config_helper()\
+        .get_group_replication_message_cache_size()
+
+
+@charms_openstack.adapters.config_property
 def binlog_expire_logs_seconds_adapter(cls):
     """Determine the value for binlog_expire_logs_seconds.
 
