@@ -12,6 +12,7 @@
       needs_charm_build: true
       charm_build_name: mysql-innodb-cluster
       build_type: charmcraft
+      charmcraft_channel: "1.7/stable"
 
 - job:
     name: full_model-focal-full-ha
