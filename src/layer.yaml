@@ -7,6 +7,7 @@ includes:
   - interface:mysql-router
   - interface:mysql-innodb-cluster
   - interface:mysql-monitor
+  - interface:http
 options:
   basic:
     use_venv: True

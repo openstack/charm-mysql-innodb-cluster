@@ -21,6 +21,7 @@ import subprocess
 import tenacity
 import tempfile
 import uuid
+from typing import Literal
 
 import charms.coordinator as coordinator
 import charms_openstack.charm
@@ -197,7 +198,46 @@ class CannotConnectToMySQL(Exception):
     pass
 
 
-class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
+class MySQLPrometheusExporterMixin:
+    """Mixin for the Prometheus exporter service.
+
+    The mixin should only inheritance by MySQLInnoDBClusterCharm.
+    """
+
+    @property
+    def prometheus_exporter_user(self):
+        """Return the prometheus exporter username.
+
+        :returns: Exporter username
+        :rtype: str
+        """
+        return "prom_exporter"
+
+    @property
+    def prometheus_exporter_password(self):
+        """Return or set password for the prometheus exporter user.
+
+        :returns: Exporter password
+        :rtype: str
+        """
+        return self._get_password("prom_exporter_password")
+
+    @property
+    def prometheus_exporter_port(self):
+        """Return this unit's prometheus exporter port.
+
+        Using the class method determine this unit's prom_exporter address.
+
+        :returns: Port
+        :rtype: str
+        """
+        return "9104"
+
+
+class MySQLInnoDBClusterCharm(
+    MySQLPrometheusExporterMixin,
+    charms_openstack.charm.OpenStackCharm,
+):
     """Charm class for the MySQLInnoDBCluster charm."""
     name = "mysql-innodb-cluster"
     release = "train"
@@ -468,7 +508,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         return _helper
 
     @staticmethod
-    def _grant_cluster_user_privileges(m_helper, address, user, read_only):
+    def _grant_user_privileges(
+        m_helper,
+        address,
+        user,
+        privilege: Literal["all", "read_only", "prom_exporter"],
+    ):
         """Grant privileges for cluster user.
 
         :param m_helper: connected RW instance of the MySQLDB8Helper class
@@ -477,14 +522,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         :type address: str
         :param user: Cluster user's username
         :type user: str
-        :param read_only: Grand read-only permissions [False]
-        :type read_only: bool
+        :param privilege: User permission
+        :type privilege:
+            Literal["all", "read_only", "prom_exporter"]
         :side effect: Executes SQL to revoke and grand privileges for user
         """
         sql_grant = "GRANT {permissions} ON *.* TO '{user}'@'{host}'"
         sql_revoke = "REVOKE ALL PRIVILEGES ON *.* FROM '{user}'@'{host}'"
-        if read_only:
+        if privilege == "read_only":
             permissions = "SELECT, SHOW VIEW"
+        elif privilege == "prom_exporter":
+            permissions = "PROCESS, REPLICATION CLIENT"
         else:
             permissions = "ALL PRIVILEGES"
             # NOTE (rgildein): The WITH GRANT OPTION clause gives the user the
@@ -512,14 +560,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
 
         m_helper.execute("FLUSH PRIVILEGES")
 
-    def create_cluster_user(
-            self,
-            cluster_address,
-            cluster_user,
-            cluster_password,
-            read_only=False
+    def create_user(
+        self,
+        address,
+        user,
+        password,
+        user_privilege,
     ):
-        """Create cluster user and grant permissions in the MySQL DB.
+        """Create user and grant permissions in the MySQL DB.
 
         This user will be used by the leader for instance configuration and
         initial cluster creation.
@@ -527,14 +575,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         The grants are specific to cluster creation and management as
         documented upstream.
 
-        :param cluster_address: Cluster user's address
-        :type cluster_address: str
-        :param cluster_user: Cluster user's username
-        :type cluster_user: str
-        :param cluster_password: Cluster user's password
-        :type cluster_password: str
-        :param read_only: Grand read-only permissions [False]
-        :type read_only: bool
+        :param address: User's address
+        :type address: str
+        :param exporter_user: User's username
+        :type user: str
+        :param password: User's password
+        :type password: str
+        :param privilege: User permission
+        :type privilege: Literal[all, read_only, prom_exporter]
         :side effect: Executes SQL to create DB user
         :returns: True if successful, False if there are failures
         :rtype: Boolean
@@ -543,8 +591,8 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             "CREATE USER '{user}'@'{host}' "
             "IDENTIFIED BY '{password}'")
 
-        addresses = [cluster_address]
-        if cluster_address in self.cluster_address:
+        addresses = [address]
+        if address in self.cluster_address:
             addresses.append("localhost")
 
         # If this is scale out and the cluster already exists, use the cluster
@@ -557,12 +605,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         for address in addresses:
             try:
                 m_helper.execute(SQL_CLUSTER_USER_CREATE.format(
-                    user=cluster_user,
+                    user=user,
                     host=address,
-                    password=cluster_password)
+                    password=password)
                 )
-                self._grant_cluster_user_privileges(
-                    m_helper, address, cluster_user, read_only
+                self._grant_user_privileges(
+                    m_helper, address, user, user_privilege,
                 )
             except mysql.MySQLdb._exceptions.OperationalError as e:
                 if e.args[0] == self._read_only_error:
@@ -575,11 +623,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 if e.args[0] == self._user_create_failed:
                     ch_core.hookenv.log(
                         "User {} exists."
-                        .format(cluster_user), "WARNING")
+                        .format(user), "WARNING")
                     # NOTE (rgildein): This is necessary to ensure that the
                     # existing user has the correct privileges.
-                    self._grant_cluster_user_privileges(
-                        m_helper, address, cluster_user, read_only
+                    self._grant_user_privileges(
+                        m_helper, address, user, user_privilege,
                     )
                     continue
                 else:
@@ -1098,10 +1146,11 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
                 "create cluster user for {}.".format(address))
         # Make sure we have the user in the DB
         for unit in cluster.all_joined_units:
-            if not self.create_cluster_user(
+            if not self.create_user(
                     unit.received['cluster-address'],
                     unit.received['cluster-user'],
-                    unit.received['cluster-password']):
+                    unit.received['cluster-password'],
+                    "all"):
                 raise Exception(
                     "Not all cluster users created.")
         self.configure_instance(address)

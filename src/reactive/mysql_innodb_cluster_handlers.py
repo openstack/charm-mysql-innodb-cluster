@@ -12,6 +12,10 @@ import charmhelpers.contrib.openstack.cert_utils as cert_utils
 import charms.coordinator as coordinator
 import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster  # noqa
 
+from .prometheus_mysql_exporter_handlers import (
+    create_remote_prometheus_exporter_user
+)
+
 charms_openstack.bus.discover()
 
 charm.use_defaults('update-status')
@@ -68,10 +72,12 @@ def create_local_cluster_user():
     """
     ch_core.hookenv.log("Creating local cluster user.", "DEBUG")
     with charm.provide_charm_instance() as instance:
-        if not instance.create_cluster_user(
+        if not instance.create_user(
                 instance.cluster_address,
                 instance.cluster_user,
-                instance.cluster_password):
+                instance.cluster_password,
+                "all",
+        ):
             ch_core.hookenv.log("Local cluster user was not created.",
                                 "WARNING")
             return
@@ -116,10 +122,11 @@ def create_remote_cluster_user():
     ch_core.hookenv.log("Creating remote users.", "DEBUG")
     with charm.provide_charm_instance() as instance:
         for unit in cluster.all_joined_units:
-            if not instance.create_cluster_user(
+            if not instance.create_user(
                     unit.received['cluster-address'],
                     unit.received['cluster-user'],
-                    unit.received['cluster-password']):
+                    unit.received['cluster-password'],
+                    "all"):
                 ch_core.hookenv.log("Not all remote users created.", "WARNING")
                 return
 
@@ -368,6 +375,10 @@ def scale_out():
                 "WARNING")
             return
     create_remote_cluster_user()
+
+    if reactive.endpoint_from_flag("prometheus.available"):
+        create_remote_prometheus_exporter_user()
+
     configure_instances_for_clustering()
     add_instances_to_cluster()
     reactive.clear_flag('endpoint.cluster.changed.unit-configure-ready')
@@ -503,8 +514,8 @@ def db_monitor_respond():
     with charm.provide_charm_instance() as instance:
         # NOTE (rgildein): Create a custom user with administrator privileges,
         # but read-only access.
-        if not instance.create_cluster_user(
-                db_monitor.relation_ip, username, password, True
+        if not instance.create_user(
+                db_monitor.relation_ip, username, password, "read_only"
         ):
             ch_core.hookenv.log("db-monitor user was not created.",
                                 ch_core.hookenv.WARNING)

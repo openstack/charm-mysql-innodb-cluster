@@ -18,6 +18,8 @@ provides:
   db-monitor:
     interface: mysql-monitor
     scope: container
+  prometheus:
+    interface: http
 peers:
   cluster:
     interface: mysql-innodb-cluster
@@ -27,3 +29,8 @@ resources:
     filename: mysql-shell.snap
     description: |
       Snap for mysql-shell
+  mysqld-exporter:
+    type: file
+    filename: mysqld-exporter.snap
+    description: |
+      snap for mysqld prometheus exporter

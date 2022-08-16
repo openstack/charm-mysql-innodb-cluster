@@ -183,3 +183,9 @@ options:
     default:
     description: |
       The hostname or address of the db-router endpoint for mysql-innodb-cluster
+  prometheus-exporter-snap-channel:
+    type: string
+    default:
+    description: |
+      Choose which channel to install for mysql prometheus exporter
+      Supported values are: "stable", "candidate", "beta" and "edge"

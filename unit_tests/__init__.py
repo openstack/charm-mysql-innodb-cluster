@@ -41,6 +41,10 @@ charms.leadership = mock.MagicMock()
 sys.modules['charms.leadership'] = charms.leadership
 charms.coordinator = mock.MagicMock()
 sys.modules['charms.coordinator'] = charms.coordinator
+charms.layer = mock.MagicMock()
+sys.modules['charms.layer'] = charms.layer
+charms.layer.snap = mock.MagicMock()
+sys.modules['charms.layer.snap'] = charms.layer.snap
 
 charmhelpers = mock.MagicMock()
 charmhelpers.contrib.database = mock.MagicMock()

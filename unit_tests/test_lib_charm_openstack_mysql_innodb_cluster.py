@@ -467,7 +467,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
 
         # All privileges
-        midbc._grant_cluster_user_privileges(mock_helper, _addr, _user, False)
+        midbc._grant_user_privileges(mock_helper, _addr, _user, "all")
         mock_helper.execute.assert_has_calls([
             mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
                       .format(_user, _addr)),
@@ -478,7 +478,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         mock_helper.reset_mock()
 
         # read-only privileges
-        midbc._grant_cluster_user_privileges(mock_helper, _addr, _user, True)
+        midbc._grant_user_privileges(mock_helper, _addr, _user, "read_only")
         mock_helper.execute.assert_has_calls([
             mock.call("REVOKE ALL PRIVILEGES ON *.* FROM '{}'@'{}'"
                       .format(_user, _addr)),
@@ -488,7 +488,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         ])
         mock_helper.reset_mock()
 
-    def test_create_cluster_user(self):
+    def test_create_user(self):
         _user = "user"
         _pass = "pass"
         _addr = "10.10.20.20"
@@ -498,7 +498,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.get_db_helper.return_value = _helper
         midbc.get_cluster_rw_db_helper = mock.MagicMock(return_value=None)
         # Non-local
-        midbc.create_cluster_user(_addr, _user, _pass)
+        midbc.create_user(_addr, _user, _pass, "all")
         _calls = [
             mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
                       .format(_user, _addr, _pass)),
@@ -514,7 +514,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _localhost = "localhost"
         _helper.reset_mock()
         self.get_relation_ip.return_value = _addr
-        midbc.create_cluster_user(_localhost, _user, _pass)
+        midbc.create_user(_localhost, _user, _pass, "all")
         _calls = [
             mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
                       .format(_user, _localhost, _pass)),
@@ -527,7 +527,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             _calls, any_order=True)
 
         # Read only privileges
-        midbc.create_cluster_user(_localhost, _user, _pass, read_only=True)
+        midbc.create_user(_localhost, _user, _pass, "read_only")
         _calls = [
             mock.call("CREATE USER '{}'@'{}' IDENTIFIED BY '{}'"
                       .format(_user, _localhost, _pass)),
@@ -552,20 +552,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.MagicMock(),  # gran privileges
             mock.MagicMock(),  # flush privileges
         ]
-        self.assertTrue(midbc.create_cluster_user(_localhost, _user, _pass))
+        self.assertTrue(midbc.create_user(_localhost, _user, _pass, "all"))
 
         # Read only node
         _helper.reset_mock()
         _helper.execute.side_effect = (
             self._exceptions.OperationalError(1290, "Super read only"))
-        self.assertFalse(midbc.create_cluster_user(_localhost, _user, _pass))
+        self.assertFalse(midbc.create_user(_localhost, _user, _pass, "all"))
 
         # Unhandled Exception
         _helper.reset_mock()
         _helper.execute.side_effect = (
             self._exceptions.OperationalError(99999, "BROKEN"))
         with self.assertRaises(FakeException):
-            midbc.create_cluster_user(_localhost, _user, _pass)
+            midbc.create_user(_localhost, _user, _pass, "all")
 
     def test_configure_instance(self):
         _pass = "clusterpass"
@@ -1140,7 +1140,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mysql_innodb_cluster.charms_openstack.charm.OpenStackCharm,
             "states_to_check", "super_states")
         self.super_states.return_value = {}
-        _required_rels = ["cluster"]
+        _required_rels = ["all"]
         _name = "jujuCluster"
         _addr = "10.20.20.20"
         self.get_relation_ip.return_value = _addr
@@ -1759,22 +1759,22 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "cluster-user": _user,
             "cluster-password": _pass,
         }
-        _create_cluster_user = mock.MagicMock()
-        _create_cluster_user.return_value = True
-        midbc.create_cluster_user = _create_cluster_user
+        _create_user = mock.MagicMock()
+        _create_user.return_value = True
+        midbc.create_user = _create_user
         _configure_instance = mock.MagicMock()
         midbc.configure_instance = _configure_instance
         _add_instance_to_cluster = mock.MagicMock()
         midbc.add_instance_to_cluster = _add_instance_to_cluster
 
         midbc.configure_and_add_instance(address=_remote_addr)
-        _create_cluster_user.assert_called_once_with(
-            _remote_addr, _user, _pass)
+        _create_user.assert_called_once_with(
+            _remote_addr, _user, _pass, "all")
         _configure_instance.assert_called_once_with(_remote_addr)
         _add_instance_to_cluster.assert_called_once_with(_remote_addr)
 
         # Not all users created
-        _create_cluster_user.return_value = False
+        _create_user.return_value = False
         with self.assertRaises(Exception):
             midbc.configure_and_add_instance(address=_remote_addr)
 
@@ -1868,3 +1868,25 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 ("SET GLOBAL group_replication_ip_allowlist = "
                  "'10.0.0.0/24,10.10.0.0/24'")),
             mock.call('START GROUP_REPLICATION')])
+
+    def test_prometheus_exporter_user(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(
+            midbc.prometheus_exporter_user,
+            "prom_exporter")
+
+    def test_prometheus_exporter_password(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc._get_password = mock.MagicMock()
+        midbc._get_password.side_effect = self._fake_data
+        _pass = "pass123"
+        self.data = {"mysql.passwd": _pass}
+        self.assertEqual(
+            midbc.mysql_password,
+            _pass)
+
+    def test_prometheus_exporter_port(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(
+            midbc.prometheus_exporter_port,
+            "9104")
