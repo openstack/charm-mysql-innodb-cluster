@@ -1457,6 +1457,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(
                 ["/usr/bin/mysqldump", "-u", "root", "--triggers",
                  "--routines", "--events", "--ignore-table=mysql.event",
+                 "--set-gtid-purged=COMMENTED",
                  "--result-file", _filename, "--all-databases"]),
             mock.call(["/usr/bin/gzip", _filename])]
 
@@ -1472,6 +1473,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(
                 ["/usr/bin/mysqldump", "-u", "root", "-ppass", "--triggers",
                  "--routines", "--events", "--ignore-table=mysql.event",
+                 "--set-gtid-purged=COMMENTED",
                  "--result-file", _filename, "--databases", _dbs]),
             mock.call(["/usr/bin/gzip", _filename])]
         self.assertEqual(midbc.mysqldump(_path, databases=_dbs),
@@ -1486,6 +1488,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mock.call(
                 ["/usr/bin/mysqldump", "-u", "root", "-ppass", "--triggers",
                  "--routines", "--events", "--ignore-table=mysql.event",
+                 "--set-gtid-purged=COMMENTED",
                  "--result-file", _filename, "--databases"].extend(
                      _dbs.split(","))),
             mock.call(["/usr/bin/gzip", _filename])]
