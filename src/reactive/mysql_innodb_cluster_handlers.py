@@ -27,6 +27,12 @@ def custom_upgrade_charm():
         if reactive.is_flag_set('leadership.is_leader'):
             # Change leadership cluster flags with dots in their names
             instance.update_dotted_flags()
+            if (reactive.is_flag_set(
+                    'leadership.set.cluster-instances-clustered') and
+                    reactive.is_flag_set('db-router.available')):
+                db_router = reactive.endpoint_from_flag("db-router.available")
+                # Deliver fix for bug LP#1989505
+                instance.create_databases_and_users(db_router)
         instance.upgrade_charm()
         instance.assess_status()
 
