@@ -1805,7 +1805,8 @@ class MySQLInnoDBClusterCharm(
 
         bucmd = ["/usr/bin/mysqldump", "-u", _user,
                  "--triggers", "--routines", "--events",
-                 "--ignore-table=mysql.event"]
+                 "--ignore-table=mysql.event",
+                 "--set-gtid-purged=COMMENTED"]
         if databases is not None:
             _filename = os.path.join(
                 backup_dir,
