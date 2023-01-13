@@ -20,11 +20,11 @@
     dependencies:
       - focal
     vars:
-      tox_extra_args: full_model:focal-full-ha
+      tox_extra_args: '-- full_model:focal-full-ha'
 - job:
     name: full_model-jammy-full-ha
     parent: func-target
     dependencies:
       - jammy
     vars:
-      tox_extra_args: full_model:jammy-full-ha
+      tox_extra_args: '-- full_model:jammy-full-ha'
