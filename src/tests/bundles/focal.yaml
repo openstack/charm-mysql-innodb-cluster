@@ -15,11 +15,11 @@ applications:
   keystone:
     charm: ch:keystone
     num_units: 1
-    channel: latest/edge
+    channel: yoga/edge
   vault:
     charm: ch:vault
     num_units: 1
-    channel: latest/edge
+    channel: 1.7/edge
 relations:
   - - vault:certificates
     - mysql-innodb-cluster:certificates
