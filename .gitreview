@@ -1,6 +1,0 @@
-[gerrit]
-host=review.opendev.org
-port=29418
-project=openstack/charm-mysql-innodb-cluster.git
-
-defaultbranch=stable/focal
