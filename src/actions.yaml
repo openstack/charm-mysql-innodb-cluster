@@ -94,3 +94,22 @@ update-unit-acls:
      WARNING When this action is run, group replication is stopped, the acls
      updated and the group replication is started again. Group replication
      should be running after this action has completed.
+rotate-service-user-password:
+  description: |
+    Rotate the specified mysql user's password. The current password is
+    replaced with a randomly generated password. The password is changed on the
+    relation to the user's units. This may result in a control plane outage for
+    the duration of the password changing process.
+  params:
+    service-user:
+      type: string
+      description: |
+        The username of the mysql service as specified in
+        list-service-usernames.  Do NOT use this to change keystone service
+        user passwords; the keystone charm has an action to change services
+        related to keystone.
+list-service-usernames:
+  description: |
+    List the usernames of the passwords that have been provided on the
+    shared-db and router-db relations. The service username passed to
+    'rotate-service-user-password' needs to be on this list.
