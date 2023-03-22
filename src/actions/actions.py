@@ -37,6 +37,7 @@ import charms_openstack.charm as charm
 import charms.reactive as reactive
 import charmhelpers.core as ch_core
 import charms_openstack.bus
+import charm.openstack.exceptions as exceptions
 charms_openstack.bus.discover()
 
 
@@ -351,18 +352,58 @@ def update_unit_acls(args):
         instance.update_acls()
 
 
+def list_service_usernames(args):
+    """List the service usernames known in this model that can be rotated."""
+    with charm.provide_charm_instance() as instance:
+        usernames = instance.get_service_usernames()
+    ch_core.hookenv.action_set({'usernames': ','.join(usernames)})
+
+
+def rotate_service_user_password(args):
+    """Rotate the service user's password.
+
+    The parameter must be passed in the service-user parameter.
+
+    :raises: Exception if keystone client cannot update the password
+    """
+    service_user = ch_core.hookenv.action_get("service-user")
+    db_router = reactive.endpoint_from_flag("db-router.available")
+    try:
+        with charm.provide_charm_instance() as instance:
+            instance.rotate_service_user_passwd(service_user, db_router)
+    except exceptions.NotLeaderError:
+        ch_core.hookenv.action_fail(
+            "Unit is not the leader and so can't run "
+            "rotate-service-user-password action.  Please run action on the "
+            "leader unit of the application.")
+    except exceptions.InvalidServiceUserError:
+        ch_core.hookenv.action_fail(
+            "Service username {} is not valid for password rotation.  Please "
+            "check the action 'list-service-users' for the correct username."
+            .format(service_user))
+    except exceptions.NotInCluster:
+        ch_core.hookenv.action_fail(
+            "This unit is not part of a cluster and so can not perform a "
+            "password rotation.  Please check cluster status.")
+    except Exception:
+        raise
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"mysqldump": mysqldump, "cluster-status": cluster_status,
-           "restore-mysqldump": restore_mysqldump,
-           "set-cluster-option": set_cluster_option,
-           "reboot-cluster-from-complete-outage":
-               reboot_cluster_from_complete_outage,
-           "rejoin-instance": rejoin_instance,
-           "add-instance": add_instance,
-           "remove-instance": remove_instance,
-           "cluster-rescan": cluster_rescan,
-           "update-unit-acls": update_unit_acls}
+ACTIONS = {
+    "mysqldump": mysqldump, "cluster-status": cluster_status,
+    "restore-mysqldump": restore_mysqldump,
+    "set-cluster-option": set_cluster_option,
+    "reboot-cluster-from-complete-outage": reboot_cluster_from_complete_outage,
+    "rejoin-instance": rejoin_instance,
+    "add-instance": add_instance,
+    "remove-instance": remove_instance,
+    "cluster-rescan": cluster_rescan,
+    "update-unit-acls": update_unit_acls,
+    "list-service-usernames": list_service_usernames,
+    "rotate-service-user-password": rotate_service_user_password,
+}
 
 
 def main(args):
@@ -377,13 +418,21 @@ def main(args):
     else:
         try:
             action(args)
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             ch_core.hookenv.action_set({
                 "output": e.output.decode("UTF-8"),
                 "return-code": e.returncode,
                 "traceback": traceback.format_exc()})
             ch_core.hookenv.action_fail(
                 "{} action failed.".format(action_name))
+        except Exception as e:
+            ch_core.hookenv.action_set({
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+            ch_core.hookenv.action_fail(
+                "{} action failed.".format(action_name))
+
     ch_core.hookenv._run_atexit()
 
 

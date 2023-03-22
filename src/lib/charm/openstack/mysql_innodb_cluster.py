@@ -17,6 +17,7 @@ import datetime
 import ipaddress
 import json
 import os
+import re
 import subprocess
 import tenacity
 import tempfile
@@ -37,6 +38,8 @@ import charmhelpers.contrib.openstack.cert_utils as cert_utils
 import charmhelpers.contrib.database.mysql as mysql
 
 from charms_openstack.charm import utils as chos_utils
+
+import charm.openstack.exceptions as exceptions
 
 
 MYSQLD_CNF = "/etc/mysql/mysql.conf.d/mysqld.cnf"
@@ -2185,3 +2188,100 @@ class MySQLInnoDBClusterCharm(
                         ip_allow_list))
                 m_helper.execute("START GROUP_REPLICATION")
                 self.wait_for_cluster_state(m_helper, address, 'ONLINE')
+
+    PASSWORD_PATTERNS = (re.compile(r"^mysql-(.*)\.passwd$"),
+                         re.compile(r"^(.*)\.passwd$"))
+
+    def get_service_usernames(self):
+        """Provide a list of service usernames that can be rotated.
+
+        :returns: list of service names
+        :rtype: List[str]
+        """
+        usernames = set()
+        for key in ch_core.hookenv.leader_get().keys():
+            for pattern in self.PASSWORD_PATTERNS:
+                match = pattern.match(key)
+                if match:
+                    username = match[1]
+                    if username != "mysql":
+                        usernames.add(username)
+                    break
+        return sorted(usernames)
+
+    def rotate_service_user_passwd(self, service_username, db_router):
+        """Rotate the passed service user password.
+
+        Rotate the password for the service user specified.  It must be one of
+        the usernames returned by `get_service_usernames()`; otherwise an error
+        is generated.
+
+        :param service_username: the service user to rotate the passord for.
+        :type service_username: str
+        :param db_router: the db_router interface
+        :type db_router: Optional[reactive.relations.Endpoint]
+        :raises: exceptions.InvalidServiceUserError if the service username
+            isn't allowed to be rotated.
+        :raises: exceptions.NotLeaderError if the unit is not the leader.
+        """
+        if not ch_core.hookenv.is_leader():
+            raise exceptions.NotLeaderError()
+        valid_usernames = self.get_service_usernames()
+        if service_username not in valid_usernames:
+            raise exceptions.InvalidServiceUserError()
+
+        # use the cluster helper, as this will write the password across the
+        # cluster.
+        m_helper = self.get_cluster_rw_db_helper()
+        if not m_helper:
+            ch_core.hookenv.log(
+                "Can't get a cluster rw helper, which is needed for password "
+                "rotations.",
+                "DEBUG")
+            raise exceptions.NotInCluster()
+
+        # get a list of the hosts for the user.
+        user_hosts = m_helper.user_host_list()
+        ch_core.hookenv.log(
+            "User host lists = {}".format(", ".join(
+                ("{}@{}".format(u, h) for u, h in user_hosts))),
+            "DEBUG")
+        # find the hosts that match the user
+        service_user_hosts = [h for u, h in user_hosts
+                              if u == service_username]
+
+        # create the new password; 32 chars is in line with password creation
+        # in charm-helpers for mysql.
+        new_passwd = ch_core.host.pwgen(length=32)
+
+        # Update the password in the database for the users
+        m_helper.set_mysql_password_using_current_connection(
+            service_username, new_passwd, service_user_hosts)
+
+        # Now that the database is updated, update the relation data.
+        if db_router is None:
+            ch_core.hookenv.log(
+                "No db_router relations made, so nothing to update.",
+                "INFO")
+            return
+        # find the relation info for the service user.
+        for unit in db_router.all_joined_units:
+            db_data = mysql.get_db_data(
+                dict(unit.received),
+                unprefixed=self._unprefixed)
+            for prefix, key_value in db_data.items():
+                try:
+                    username = key_value['username']
+                except KeyError:
+                    continue
+                if username == service_username:
+                    # This is the relation to update.
+                    relation_key = ('password' if prefix == self._unprefixed
+                                    else '{}_password'.format(prefix))
+                    ch_core.hookenv.log(
+                        "Setting password on relation {} on key {}"
+                        .format(unit.relation.relation_id, relation_key),
+                        "DEBUG")
+                    db_router.relations[
+                        unit.relation.relation_id].to_publish_app[
+                            relation_key] = new_passwd

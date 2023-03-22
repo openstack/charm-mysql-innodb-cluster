@@ -16,13 +16,16 @@ configure:
 
 tests:
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
+- zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterRotatePasswordTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 - full_model:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
+    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterRotatePasswordTests
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 - scale_in_out:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterScaleTest
+    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterRotatePasswordTests
     - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
     - zaza.openstack.charm_tests.mysql.test_prometheus_mysql_exporter.PrometheusMySQLExporterTest
 

@@ -14,11 +14,13 @@
 
 import copy
 import collections
+import re
 from unittest import mock
 
 import charms_openstack.test_utils as test_utils
 
 import charm.openstack.mysql_innodb_cluster as mysql_innodb_cluster
+import charm.openstack.exceptions as exceptions
 
 
 class FakeException(Exception):
@@ -103,6 +105,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.patch_object(mysql_innodb_cluster.leadership, "leader_set")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "leader_get")
         self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "config")
+        self.patch_object(mysql_innodb_cluster.ch_core.hookenv, "log")
         self.patch_object(
             mysql_innodb_cluster.ch_core.hookenv, "application_version_set")
         self.leader_get.side_effect = self._fake_leader_data
@@ -244,8 +247,11 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         # Generic interface
         self.interface = mock.MagicMock()
 
-    def _fake_leader_data(self, key):
-        return self.leader_data.get(key)
+    def _fake_leader_data(self, key=None):
+        if key:
+            return self.leader_data.get(key)
+        else:
+            return self.leader_data.copy()
 
     def _fake_config_data(self, key=None):
         if key is None:
@@ -1951,3 +1957,87 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual(
             midbc.prometheus_exporter_port,
             "9104")
+
+    def test_get_service_usernames(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.leader_data = {
+            "mysql.passwd": "mysql-password",
+            "cinder.passwd": "cinder-password",
+            "mysql-keystone.passwd": "keystone-password",
+            "other-key": "other-key-value",
+        }
+        self.assertEqual(midbc.get_service_usernames(), ['cinder', 'keystone'])
+
+    def test_rotate_service_user_passwd(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.leader_data = {
+            "mysql.passwd": "mysql-password",
+            "cinder.passwd": "cinder-password",
+            "mysql-keystone.passwd": "keystone-password",
+            "other-key": "other-key-value",
+        }
+        self.is_leader.return_value = False
+        with self.assertRaises(exceptions.NotLeaderError):
+            midbc.rotate_service_user_passwd("hello", self.kmr_db_router)
+        self.is_leader.return_value = True
+        with self.assertRaises(exceptions.InvalidServiceUserError):
+            midbc.rotate_service_user_passwd("hello", self.kmr_db_router)
+
+        mock_db_helper = mock.MagicMock()
+        with mock.patch.object(
+                midbc, 'get_cluster_rw_db_helper') as mock_get_cluster_db:
+            mock_get_cluster_db.return_value = None
+            with self.assertRaises(exceptions.NotInCluster):
+                midbc.rotate_service_user_passwd(
+                    "keystone", self.kmr_db_router)
+            mock_get_cluster_db.return_value = mock_db_helper
+            mock_db_helper.user_host_list.return_value = [
+                ('cinder', 'hosta'),
+                ('keystone', 'hostb'),
+            ]
+            self.pwgen.return_value = "super-password"
+
+            # call with db_router as None
+            midbc.rotate_service_user_passwd('keystone', None)
+
+            mock_db_helper.set_mysql_password_using_current_connection \
+                .assert_called_once_with(
+                    'keystone', 'super-password', ['hostb'])
+
+            self._assert_regex_in_log(r"^No db_router relations made")
+
+            # now test with a db_router
+            unit1 = mock.MagicMock()
+            unit1.recieved = [('a', 'aa'), ('b', 'bb')]
+            unit1.relation.relation_id = 'db_router:1'
+            relation_mock = mock.MagicMock()
+            self.kmr_db_router.all_joined_units = [unit1]
+            self.kmr_db_router.relations = {
+                'db_router:1': relation_mock,
+            }
+            self.patch_object(mysql_innodb_cluster, 'mysql')
+            self.mysql.get_db_data.return_value = {
+                'MRUP': {
+                    'some-key': 'some-value',
+                    'username': 'keystone',
+                }
+            }
+            midbc.rotate_service_user_passwd('keystone', self.kmr_db_router)
+
+            self._assert_regex_in_log(
+                r"^Setting password .* db_router:1 on key MRUP_password")
+            relation_mock.to_publish_app.__setitem__.assert_called_once_with(
+                'MRUP_password', 'super-password')
+            self.mysql.get_db_data.assert_called_once_with(
+                {}, unprefixed='MICUP')
+
+    def _assert_regex_in_log(self, regex):
+        pattern = re.compile(regex)
+        calls = self.log.call_args_list
+        for call in calls:
+            args = call[0]
+            msg = args[0]
+            print("Log message: {}".format(msg))
+            if pattern.match(msg):
+                return
+        self.fail("regex {} not found in any log.".format(regex))
