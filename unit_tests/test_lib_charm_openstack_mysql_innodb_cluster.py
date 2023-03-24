@@ -563,6 +563,22 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             mysql_innodb_cluster.mysql.MySQLdb, "_exceptions")
         self._exceptions.OperationalError = FakeException
 
+        # _helper.connect raises midbc._local_socket_connection_error
+        _helper.reset_mock()
+        # _helper.connect.side_effect = _error
+        _helper.connect.side_effect = FakeException(2002, "Failed connection")
+        self.assertFalse(midbc.create_user(_localhost, _user, _pass, "all"))
+        _helper.connect.assert_called_once_with(password=mock.ANY)
+
+        # _helper.connect raises a different error.
+        _helper.connect.side_effect = FakeException(9999, "Unknown exception")
+        with self.assertRaises(FakeException) as e:
+            midbc.create_user(_localhost, _user, _pass, "all")
+        self.assertEqual(e.exception.code, 9999)
+
+        # removen the exception to move on to _helper.execute exceptions
+        _helper.connect.side_effect = None
+
         # User Exists
         _helper.reset_mock()
         _helper.execute.side_effect = [

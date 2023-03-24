@@ -265,6 +265,7 @@ class MySQLInnoDBClusterCharm(
 
     _read_only_error = 1290
     _user_create_failed = 1396
+    _local_socket_connection_error = 2002
 
     @property
     def mysqlsh_bin(self):
@@ -627,7 +628,16 @@ class MySQLInnoDBClusterCharm(
 
             # Otherwise, this unit is not configured for the cluster
             m_helper = self.get_db_helper()
-            m_helper.connect(password=self.mysql_password)
+            try:
+                m_helper.connect(password=self.mysql_password)
+            except mysql.MySQLdb._exceptions.OperationalError as e:
+                if e.args[0] == self._local_socket_connection_error:
+                    ch_core.hookenv.log(
+                        "Couldn't connect to local socket when trying to "
+                        "create the user: '{}'.".format(user),
+                        "WARNING")
+                    return False
+                raise
 
         for address in addresses:
             try:
