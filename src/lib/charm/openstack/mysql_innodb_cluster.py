@@ -443,7 +443,7 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             ch_core.hookenv.log(
                 "Cannot determine the cluster primary RW node for writes.",
                 "WARNING")
-            return
+            return None
         _helper = self.get_db_helper()
         _helper.connect(
             user=self.cluster_user,
@@ -1288,6 +1288,12 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         db_host = ch_net_ip.get_relation_ip(interface.endpoint_name)
         db_helper = self.get_db_helper()
         rw_helper = self.get_cluster_rw_db_helper()
+        if not rw_helper:
+            ch_core.hookenv.log(
+                "create_databases_and_users: the rw helper for the cluster is "
+                "not available and so skipping create_databases_and_users",
+                "WARNING")
+            return False
         for unit in interface.all_joined_units:
             db_data = mysql.get_db_data(
                 dict(unit.received),
