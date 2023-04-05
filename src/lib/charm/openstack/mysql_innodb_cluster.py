@@ -575,6 +575,13 @@ class MySQLInnoDBClusterCharm(
         The grants are specific to cluster creation and management as
         documented upstream.
 
+        NOTE: LP#2015256 means that if this unit is supposed to be part of a
+        cluster but can't acquire a cluster rw db_helper object hen it should
+        fail by returning False.  This is done by checking for the configured'
+        flag, and if True, also checking for the 'clustered' flag in the
+        leadership settings.  If the unit isn't clustered, but is configured,
+        then the function gives up.
+
         :param address: User's address
         :type address: str
         :param exporter_user: User's username
@@ -599,6 +606,26 @@ class MySQLInnoDBClusterCharm(
         # RW node for writes.
         m_helper = self.get_cluster_rw_db_helper()
         if not m_helper:
+            # NOTE: Bug LP#2015256 - verify that the unit, if configured into
+            # the cluster, is actually part of the cluster
+            configured_flag = (
+                "leadership.set.{}"
+                .format(make_cluster_instance_configured_key(
+                    self.cluster_address)))
+            clustered_flag = (
+                "leadership.set.{}"
+                .format(make_cluster_instance_clustered_key(
+                    self.cluster_address)))
+            if (reactive.is_flag_set(configured_flag) and
+                    not reactive.is_flag_set(clustered_flag)):
+                ch_core.hookenv.log(
+                    "Attempting to create a user (function create_user()) "
+                    "when this instance is configured for the cluster but "
+                    "not yet in the cluster. Skipping.",
+                    "INFO")
+                return False
+
+            # Otherwise, this unit is not configured for the cluster
             m_helper = self.get_db_helper()
             m_helper.connect(password=self.mysql_password)
 
@@ -616,7 +643,7 @@ class MySQLInnoDBClusterCharm(
                 if e.args[0] == self._read_only_error:
                     ch_core.hookenv.log(
                         "Attempted to write to the RO node: {} in "
-                        "configure_db_for_hosts. Skipping."
+                        "create_user. Skipping."
                         .format(m_helper.connection.get_host_info()),
                         "WARNING")
                     return False

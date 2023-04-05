@@ -488,7 +488,10 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         ])
         mock_helper.reset_mock()
 
-    def test_create_user(self):
+    @mock.patch(('charm.openstack.mysql_innodb_cluster.'
+                 'MySQLInnoDBClusterCharm.cluster_address'),
+                new_callable=mock.PropertyMock)
+    def test_create_user(self, mock_cluster_address):
         _user = "user"
         _pass = "pass"
         _addr = "10.10.20.20"
@@ -497,6 +500,22 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc.get_db_helper = mock.MagicMock()
         midbc.get_db_helper.return_value = _helper
         midbc.get_cluster_rw_db_helper = mock.MagicMock(return_value=None)
+
+        # test no cluster rw_db_helper, configured, but not yet in cluster
+        self.is_flag_set.side_effect = [True, False]
+        mock_cluster_address.return_value = "10.1.2.3"
+        self.assertFalse(midbc.create_user(_addr, _user, _pass, "all"))
+        self.is_flag_set.assert_has_calls([
+            mock.call("leadership.set.{}".format(
+                mysql_innodb_cluster.make_cluster_instance_configured_key(
+                    "10.1.2.3"))),
+            mock.call("leadership.set.{}".format(
+                mysql_innodb_cluster.make_cluster_instance_clustered_key(
+                    "10.1.2.3")))])
+
+        self.is_flag_set.side_effect = None
+        self.is_flag_set.return_value = True
+
         # Non-local
         midbc.create_user(_addr, _user, _pass, "all")
         _calls = [
