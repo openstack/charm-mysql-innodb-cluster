@@ -241,11 +241,7 @@ class MySQLInnoDBClusterCharm(
     """Charm class for the MySQLInnoDBCluster charm."""
     name = "mysql-innodb-cluster"
     release = "train"
-    # TODO: Current versions of the mysql-shell snap require libpython2.7
-    # This will not be available in 20.04
-    # Fix the mysql-shell snap and remove the package here
-    packages = ["mysql-router", "mysql-server-8.0", "python3-dnspython",
-                "libpython2.7"]
+    packages = ["mysql-router", "mysql-server-8.0", "python3-dnspython"]
     python_version = 3
     default_service = "mysql"
     services = ["mysql"]
