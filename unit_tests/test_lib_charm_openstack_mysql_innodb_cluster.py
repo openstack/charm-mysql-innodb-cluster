@@ -504,7 +504,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         # test no cluster rw_db_helper, configured, but not yet in cluster
         self.is_flag_set.side_effect = [True, False]
         mock_cluster_address.return_value = "10.1.2.3"
-        self.assertFalse(midbc.create_user(_addr, _user, _pass, "all"))
+        self.assertIsNone(midbc.create_user(_addr, _user, _pass, "all"))
         self.is_flag_set.assert_has_calls([
             mock.call("leadership.set.{}".format(
                 mysql_innodb_cluster.make_cluster_instance_configured_key(
@@ -567,7 +567,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper.reset_mock()
         # _helper.connect.side_effect = _error
         _helper.connect.side_effect = FakeException(2002, "Failed connection")
-        self.assertFalse(midbc.create_user(_localhost, _user, _pass, "all"))
+        self.assertIsNone(midbc.create_user(_localhost, _user, _pass, "all"))
         _helper.connect.assert_called_once_with(password=mock.ANY)
 
         # _helper.connect raises a different error.
@@ -593,7 +593,15 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper.reset_mock()
         _helper.execute.side_effect = (
             self._exceptions.OperationalError(1290, "Super read only"))
-        self.assertFalse(midbc.create_user(_localhost, _user, _pass, "all"))
+        self.assertEqual(midbc.create_user(_localhost, _user, _pass, "all"),
+                         False)
+
+        # before commit error (3100)
+        _helper.reset_mock()
+        _helper.execute.side_effect = (
+            self._exceptions.OperationalError(3100, "Before commit error"))
+        self.assertEqual(midbc.create_user(_localhost, _user, _pass, "all"),
+                         False)
 
         # Unhandled Exception
         _helper.reset_mock()

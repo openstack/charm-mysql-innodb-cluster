@@ -262,6 +262,7 @@ class MySQLInnoDBClusterCharm(
     _read_only_error = 1290
     _user_create_failed = 1396
     _local_socket_connection_error = 2002
+    _before_commit_error = 3100
 
     @property
     def mysqlsh_bin(self):
@@ -557,6 +558,9 @@ class MySQLInnoDBClusterCharm(
 
         m_helper.execute("FLUSH PRIVILEGES")
 
+    @tenacity.retry(stop=tenacity.stop_after_attempt(6),
+                    wait=tenacity.wait_fixed(10),
+                    retry=tenacity.retry_if_result(lambda x: x is False))
     def create_user(
         self,
         address,
@@ -579,6 +583,19 @@ class MySQLInnoDBClusterCharm(
         leadership settings.  If the unit isn't clustered, but is configured,
         then the function gives up.
 
+        NOTE: LP#2018383 means that the function may return False in the
+        prometheus-relation-joined hook if the cluster is recovering from
+        switching to TLS and recovering Group Replication.  The function
+        detects this error (3100), and returns False.  The tenacity retry on
+        the method retries the function after 10 seconds, 6 times, allowing for
+        1 minute for the Group Replication to recover during the hook
+        execution. Otherwise, the function returns False to allow the caller to
+        decide what to do on the failure.
+
+        The function returns None if the unit is not configured in cluster or
+        the helper can't connect to the local socket, neither of which are
+        recoverable in this function.
+
         :param address: User's address
         :type address: str
         :param exporter_user: User's username
@@ -588,8 +605,8 @@ class MySQLInnoDBClusterCharm(
         :param privilege: User permission
         :type privilege: Literal[all, read_only, prom_exporter]
         :side effect: Executes SQL to create DB user
-        :returns: True if successful, False if there are failures
-        :rtype: Boolean
+        :returns: True if successful, False|None if there are failures
+        :rtype: Optional(Bool)
         """
         SQL_CLUSTER_USER_CREATE = (
             "CREATE USER '{user}'@'{host}' "
@@ -620,7 +637,7 @@ class MySQLInnoDBClusterCharm(
                     "when this instance is configured for the cluster but "
                     "not yet in the cluster. Skipping.",
                     "INFO")
-                return False
+                return None
 
             # Otherwise, this unit is not configured for the cluster
             m_helper = self.get_db_helper()
@@ -632,7 +649,7 @@ class MySQLInnoDBClusterCharm(
                         "Couldn't connect to local socket when trying to "
                         "create the user: '{}'.".format(user),
                         "WARNING")
-                    return False
+                    return None
                 raise
 
         for address in addresses:
@@ -655,16 +672,21 @@ class MySQLInnoDBClusterCharm(
                     return False
                 if e.args[0] == self._user_create_failed:
                     ch_core.hookenv.log(
-                        "User {} exists."
-                        .format(user), "WARNING")
+                        "User {} exists.".format(user), "WARNING")
                     # NOTE (rgildein): This is necessary to ensure that the
                     # existing user has the correct privileges.
                     self._grant_user_privileges(
                         m_helper, address, user, user_privilege,
                     )
                     continue
-                else:
-                    raise
+                if e.args[0] == self._before_commit_error:
+                    ch_core.hookenv.log(
+                        "Couldn't commit due to error {}; most likely the "
+                        "cluster's group replication recovery is in process "
+                        .format(self._before_commit_error),
+                        "WARNING")
+                    return False
+                raise
         return True
 
     def configure_instance(self, address):
