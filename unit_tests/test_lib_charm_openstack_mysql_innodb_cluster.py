@@ -1357,6 +1357,13 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual("Text", midbc.get_cluster_status_text(nocache=True))
         _status_obj.assert_called_once_with(nocache=True)
 
+        # verify None returned if _status is empty or lacks key
+        _status_obj.return_value = None
+        self.assertIsNone(midbc.get_cluster_status_text(nocache=True))
+        _status_obj.return_value = {
+            "defaultReplicaSet": {}}
+        self.assertIsNone(midbc.get_cluster_status_text(nocache=True))
+
     def test_get_cluster_instance_mode(self):
         _local_addr = "10.10.50.50"
         self.get_relation_ip.return_value = _local_addr
@@ -1385,6 +1392,14 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         midbc._cached_cluster_status = _status_dict
         self.assertEqual(_mode, midbc.get_cluster_instance_mode(nocache=True))
         _status_obj.assert_called_once_with(nocache=True)
+
+        # verify None returned if _status is empty or lacks key
+        _status_obj.return_value = None
+        self.assertIsNone(midbc.get_cluster_instance_mode(nocache=True))
+        _status_obj.return_value = {
+            "defaultReplicaSet":
+                {"topology": {}}}
+        self.assertIsNone(midbc.get_cluster_instance_mode(nocache=True))
 
     def test_check_mysql_connection(self):
         self.patch_object(
