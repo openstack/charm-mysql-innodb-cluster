@@ -1248,7 +1248,7 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Cluster is unavailable: {}"
-                .format(e.stderr.decode("UTF-8")), "ERROR")
+                .format(self._error_str(e)), "ERROR")
             return
 
         _script = (
@@ -1262,10 +1262,29 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed checking cluster status: {}"
-                .format(e.stderr.decode("UTF-8")), "ERROR")
+                .format(self._error_str(e)), "ERROR")
             return
         self._cached_cluster_status = json.loads(output.decode("UTF-8"))
         return self._cached_cluster_status
+
+    @staticmethod
+    def _error_str(e):
+        """Get error string, if possible, from a subprocess CalledProcessError.
+
+        Try to get the stderr from a CalledProcessError object, but if it's
+        None (or it is a different exception), just stringify the error.
+        (due to bug LP#2015368)
+
+        :param e: the Exception that occured.
+        :type e: Exception or derived Exception
+        :returns: the string for the error.
+        :rtype: str
+        """
+        try:
+            return e.stderr.decode()
+        except Exception:
+            pass
+        return str(e)
 
     def get_cluster_primary_address(self, nocache=False):
         """Get cluster RW primary address.

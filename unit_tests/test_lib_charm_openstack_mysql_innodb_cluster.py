@@ -1357,6 +1357,27 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.assertEqual("OK", midbc.get_cluster_status_summary(nocache=True))
         _status_obj.assert_called_once_with(nocache=True)
 
+    def test__error_str(self):
+        import subprocess
+        mysql_innodb_cluster.subprocess = subprocess
+        e1 = subprocess.CalledProcessError(
+            returncode=1,
+            cmd="the-command",
+            stderr=b"some-stderr",
+            output=b"the-output")
+        e2 = subprocess.CalledProcessError(
+            returncode=1,
+            cmd="the-command",
+            stderr=None,
+            output=b"the-output")
+        e3 = Exception("an-exception")
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.assertEqual(midbc._error_str(e1), "some-stderr")
+        self.assertEqual(
+            midbc._error_str(e2),
+            "Command 'the-command' returned non-zero exit status 1.")
+        self.assertEqual(midbc._error_str(e3), "an-exception")
+
     def test_get_cluster_primary_address(self):
         _addr = "10.5.50.76"
         _status_dict = {
