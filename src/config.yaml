@@ -113,14 +113,14 @@ options:
       Maximum connections to allow. A value of -1 means use the server's
       compiled-in default. This is not typically that useful so the
       charm will configure PXC with a default max-connections value of 600.
-      Note: Connections take up memory resources. Either at startup time with
-      performance-schema=True or during run time with performance-schema=False.
+      Note: Connections take up memory resources.
       This value is a balance between connection exhaustion and memory
       exhaustion.
       .
       Consult a MySQL memory calculator like http://www.mysqlcalculator.com/ to
       understand memory resources consumed by connections.
-      See also performance-schema.
+      See also MySQL Performance Schema at
+      https://dev.mysql.com/doc/refman/8.0/en/performance-schema.html.
   enable-binlogs:
     type: boolean
     default: False
