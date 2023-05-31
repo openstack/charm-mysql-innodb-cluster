@@ -104,6 +104,13 @@ server_id = {{ options.server_id }}
 
 skip_name_resolve = ON
 
+# Bug LP#1938708
+# Set the relay log recovery to ON so that recovery following server startup.
+# This is useful in the case of an unexpected halt where the relay log files
+# could be corrupted.
+# See https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-unexpected-replica-halt.html
+relay_log_recovery = ON
+
 #
 # * InnoDB
 #
