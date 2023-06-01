@@ -625,16 +625,11 @@ class MySQLInnoDBClusterCharm(
         if not m_helper:
             # NOTE: Bug LP#2015256 - verify that the unit, if configured into
             # the cluster, is actually part of the cluster
-            configured_flag = (
-                "leadership.set.{}"
-                .format(make_cluster_instance_configured_key(
-                    self.cluster_address)))
-            clustered_flag = (
-                "leadership.set.{}"
-                .format(make_cluster_instance_clustered_key(
-                    self.cluster_address)))
-            if (reactive.is_flag_set(configured_flag) and
-                    not reactive.is_flag_set(clustered_flag)):
+            check = {make_cluster_instance_configured_key(
+                     self.cluster_address): True,
+                     make_cluster_instance_clustered_key(
+                     self.cluster_address): False}
+            if self._contains_in_leader_settings(check):
                 ch_core.hookenv.log(
                     "Attempting to create a user (function create_user()) "
                     "when this instance is configured for the cluster but "
@@ -701,9 +696,8 @@ class MySQLInnoDBClusterCharm(
         :returns: This function is called for its side effect
         :rtype: None
         """
-        if reactive.is_flag_set(
-                "leadership.set.{}"
-                .format(make_cluster_instance_configured_key(address))):
+        check = {make_cluster_instance_configured_key(address): True}
+        if self._contains_in_leader_settings(check):
             ch_core.hookenv.log("Instance: {}, already configured."
                                 .format(address), "WARNING")
             return
@@ -794,11 +788,9 @@ class MySQLInnoDBClusterCharm(
             ch_core.hookenv.log("Cluster: {}, already created"
                                 .format(self.options.cluster_name), "WARNING")
             return
-
-        if not reactive.is_flag_set(
-                "leadership.set.{}"
-                .format(make_cluster_instance_configured_key(
-                    self.cluster_address))):
+        check = {make_cluster_instance_configured_key(
+                 self.cluster_address): False}
+        if self._contains_in_leader_settings(check):
             ch_core.hookenv.log("This instance is not yet configured for "
                                 "clustering, delaying cluster creation.",
                                 "WARNING")
@@ -933,9 +925,8 @@ class MySQLInnoDBClusterCharm(
         :returns: This function is called for its side effect
         :rtype: None
         """
-        if reactive.is_flag_set(
-                "leadership.set.{}"
-                .format(make_cluster_instance_clustered_key(address))):
+        check = {make_cluster_instance_clustered_key(address): True}
+        if self._contains_in_leader_settings(check):
             ch_core.hookenv.log("Instance: {}, already clustered."
                                 .format(address), "WARNING")
             return
@@ -984,7 +975,7 @@ class MySQLInnoDBClusterCharm(
                     "Replication is running' an indication of previously "
                     "successfully adding the instance to the cluster."
                     .format(address), "WARNING")
-            # Some failure has occured, return without setting instance
+            # Some failure has occurred, return without setting instance
             # clustered flag.
             if not output:
                 ch_core.hookenv.log(
@@ -1228,10 +1219,9 @@ class MySQLInnoDBClusterCharm(
         :rtype: Union[None, dict]
         """
         # Speed up when we are not yet clustered
-        if not reactive.is_flag_set(
-                "leadership.set.{}"
-                .format(make_cluster_instance_clustered_key(
-                    self.cluster_address))):
+        check = {make_cluster_instance_clustered_key(
+                 self.cluster_address): False}
+        if self._contains_in_leader_settings(check):
             ch_core.hookenv.log(
                 "This instance is not yet clustered: cannot determine the "
                 "cluster status.", "WARNING")
@@ -2166,6 +2156,13 @@ class MySQLInnoDBClusterCharm(
         if query_out[0][0] != target_state:
             raise ValueError
 
+    def _contains_in_leader_settings(self, expected_settings_dict):
+        leader_settings = ch_core.hookenv.leader_get()
+        for k, v in expected_settings_dict.items():
+            if str(leader_settings.get(k, False)).lower() != str(v).lower():
+                return False
+        return True
+
     def get_clustered_addresses(self):
         """Get the cluster addresses of all units which have joined cluster.
 
@@ -2178,8 +2175,8 @@ class MySQLInnoDBClusterCharm(
         clustered_addresses = []
         for address in all_addresses:
             leader_key = make_cluster_instance_clustered_key(address)
-            _value = _leader_settings.get(leader_key)
-            if _value and ch_core.strutils.bool_from_string(_value):
+            _value = _leader_settings.get(leader_key, False)
+            if str(_value).lower() == 'true':
                 clustered_addresses.append(address)
         return clustered_addresses
 

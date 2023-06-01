@@ -504,23 +504,21 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _helper = mock.MagicMock()
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_db_helper = mock.MagicMock()
+        self.leader_data = {
+            'cluster-instance-configured-10-1-2-3': 'True',
+            'cluster-instance-clustered-10-1-2-3': 'False',
+        }
         midbc.get_db_helper.return_value = _helper
         midbc.get_cluster_rw_db_helper = mock.MagicMock(return_value=None)
 
         # test no cluster rw_db_helper, configured, but not yet in cluster
-        self.is_flag_set.side_effect = [True, False]
         mock_cluster_address.return_value = "10.1.2.3"
         self.assertIsNone(midbc.create_user(_addr, _user, _pass, "all"))
-        self.is_flag_set.assert_has_calls([
-            mock.call("leadership.set.{}".format(
-                mysql_innodb_cluster.make_cluster_instance_configured_key(
-                    "10.1.2.3"))),
-            mock.call("leadership.set.{}".format(
-                mysql_innodb_cluster.make_cluster_instance_clustered_key(
-                    "10.1.2.3")))])
 
-        self.is_flag_set.side_effect = None
-        self.is_flag_set.return_value = True
+        self.leader_data = {
+            'cluster-instance-configured-10-1-2-3': 'True',
+            'cluster-instance-clustered-10-1-2-3': 'True',
+        }
 
         # Non-local
         midbc.create_user(_addr, _user, _pass, "all")
@@ -582,7 +580,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             midbc.create_user(_localhost, _user, _pass, "all")
         self.assertEqual(e.exception.code, 9999)
 
-        # removen the exception to move on to _helper.execute exceptions
+        # remove the exception to move on to _helper.execute exceptions
         _helper.connect.side_effect = None
 
         # User Exists
@@ -620,7 +618,9 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _pass = "clusterpass"
         _addr = "10.10.30.30"
         self.data = {"cluster-password": _pass}
-        self.is_flag_set.return_value = False
+        self.leader_data = {
+            'cluster-instance-configured-10-10-30-30': 'False',
+        }
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc._get_password = mock.MagicMock()
@@ -632,9 +632,6 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             .format(midbc.cluster_user, midbc.cluster_password, _addr))
 
         midbc.configure_instance(_addr)
-        self.is_flag_set.assert_called_once_with(
-            "leadership.set.cluster-instance-configured-{}"
-            .format(_addr.replace(".", "-")))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
         midbc.wait_until_connectable.assert_called_once_with(
             address=_addr, username=midbc.cluster_user,
@@ -642,6 +639,56 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.leader_set.assert_called_once_with(
             {"cluster-instance-configured-{}"
              .format(_addr.replace(".", "-")): True})
+
+    def test__contains_in_leader_settings(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+
+        # simple
+        self.leader_data = {
+            'cluster-instance-configured-10-10-30-30': 'True',
+            'foo': 'bar',
+        }
+        test = {
+            'cluster-instance-configured-10-10-30-30': 'True'
+        }
+
+        self.assertTrue(midbc._contains_in_leader_settings(test))
+
+        # double
+        self.leader_data = {
+            'cluster-instance-configured-10-10-30-30': 'True',
+            'cluster-instance-clustered-10-10-30-30': 'False',
+            'foo': 'bar',
+        }
+        test = {
+            'cluster-instance-configured-10-10-30-30': 'True',
+            'cluster-instance-clustered-10-10-30-30': 'False',
+        }
+
+        self.assertTrue(midbc._contains_in_leader_settings(test))
+
+        # False
+        self.leader_data = {
+            'cluster-instance-configured-10-10-30-30': 'True',
+            'cluster-instance-clustered-10-10-30-30': 'False',
+            'foo': 'bar',
+        }
+        test = {
+            'cluster-instance-configured-10-10-30-30': 'True',
+            'cluster-instance-clustered-10-10-30-30': 'True',
+        }
+
+        self.assertFalse(midbc._contains_in_leader_settings(test))
+
+    def test_configure_instance_already_configured(self):
+        self.leader_data = {
+            'cluster-instance-configured-10-10-30-30': 'True',
+        }
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.run_mysqlsh_script = mock.MagicMock()
+
+        midbc.configure_instance('10.10.30.30')
+        midbc.run_mysqlsh_script.assert_not_called()
 
     @mock.patch(('charm.openstack.mysql_innodb_cluster.'
                  'MySQLInnoDBClusterCharm.cluster_peer_addresses'),
@@ -728,7 +775,10 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _expel_timeout = 5
         self.get_relation_ip.return_value = _addr
         self.data = {"cluster-password": _pass}
-        self.is_flag_set.side_effect = [False, True]
+        self.leader_data = {
+            'cluster-instance-configured-10-10-40-40': 'True',
+        }
+        self.is_flag_set.return_value = False
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc._get_password = mock.MagicMock()
@@ -749,17 +799,24 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 _expel_timeout, _allowlist))
 
         midbc.create_cluster()
-        _is_flag_set_calls = [
-            mock.call("leadership.set.cluster-created"),
-            mock.call("leadership.set.cluster-instance-configured-{}"
-                      .format(_addr.replace(".", "-")))]
-        self.is_flag_set.assert_has_calls(_is_flag_set_calls, any_order=True)
+        self.is_flag_set.assert_called_once_with(
+            "leadership.set.cluster-created")
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
         _leader_set_calls = [
             mock.call({"cluster-instance-clustered-{}"
                        .format(_addr.replace(".", "-")): True}),
             mock.call({"cluster-created": self.uuid_of_cluster})]
         self.leader_set.assert_has_calls(_leader_set_calls, any_order=True)
+
+    def test_add_instance_to_cluster_already_clustered(self):
+        self.leader_data = {
+            'cluster-instance-clustered-10-10-60-60': 'True',
+        }
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_primary_address = mock.MagicMock()
+
+        midbc.add_instance_to_cluster('10.10.60.60')
+        midbc.get_cluster_primary_address.assert_not_called()
 
     def test_add_instance_to_cluster(self):
         _pass = "clusterpass"
@@ -770,7 +827,9 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.get_relation_ip.return_value = _local_addr
         self.get_relation_ip.return_value = _local_addr
         self.data = {"cluster-password": _pass}
-        self.is_flag_set.return_value = False
+        self.leader_data = {
+            'cluster-instance-clustered-10-10-60-60': 'False',
+        }
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
         midbc.get_cluster_primary_address = mock.MagicMock(
@@ -796,9 +855,6 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 _allowlist))
 
         midbc.add_instance_to_cluster(_remote_addr)
-        self.is_flag_set.assert_called_once_with(
-            "leadership.set.cluster-instance-clustered-{}"
-            .format(_remote_addr.replace(".", "-")))
         midbc.run_mysqlsh_script.assert_called_once_with(_script)
         self.leader_set.assert_called_once_with(
             {"cluster-instance-clustered-{}"
@@ -1297,7 +1353,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         self.status_set.assert_called_once_with(
             "waiting", "This unit is departing. Shutting down.")
 
+    def test_get_cluster_status_not_clustered(self):
+        self.leader_data = {
+            'cluster-instance-clustered-10-10-50-50': 'False',
+        }
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        self.get_relation_ip.return_value = "10.10.50.50"
+        self.assertIsNone(midbc.get_cluster_status())
+        midbc.wait_until_cluster_available = mock.MagicMock()
+        midbc.wait_until_cluster_available.assert_not_called()
+
     def test_get_cluster_status(self):
+        self.leader_data = {
+            'cluster-instance-clustered-10-10-50-50': 'True',
+        }
         _local_addr = "10.10.50.50"
         _name = "theCluster"
         _string = "status output"
@@ -1914,15 +1983,13 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
                 new_callable=mock.PropertyMock)
     def test_get_clustered_addresses(self, cluster_address,
                                      cluster_peer_addresses):
-        _existing = {
-            "cluster-instance-clustered-10-5-0-10": True,
-            "cluster-instance-clustered-10-5-0-20": True,
-            "cluster-instance-clustered-10-5-0-30": False,
+        self.leader_data = {
+            "cluster-instance-clustered-10-5-0-10": "True",
+            "cluster-instance-clustered-10-5-0-20": "True",
+            "cluster-instance-clustered-10-5-0-30": "False",
             "key": "value",
             "mysql.passwd": "must-not-change",
-            "cluster-instance-configured-10-5-0-40": True}
-        self.leader_get.side_effect = None
-        self.leader_get.return_value = _existing
+            "cluster-instance-configured-10-5-0-40": "True"}
         cluster_address.return_value = '10.5.0.10'
         cluster_peer_addresses.return_value = [
             '10.5.0.20',
