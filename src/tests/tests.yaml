@@ -43,11 +43,7 @@ dev_bundles:
 - full_model: jammy-full-ha
 
 tests_options:
-  force_deploy:
-    - jammy
-    - jammy-full-ha
-    - jammy
-    - jammy-full-ha
+  force_deploy: []
 
 target_deploy_status:
   neutron-api-plugin-ovn:

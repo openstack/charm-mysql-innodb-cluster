@@ -25,7 +25,7 @@ applications:
     charm: ch:mysql-router
     channel: latest/edge
   mysql-innodb-cluster:
-    charm: ../../../mysql-innodb-cluster.charm
+    charm: ../../../mysql-innodb-cluster_ubuntu-20.04-amd64.charm
     num_units: 3
     options:
       source: *openstack-origin

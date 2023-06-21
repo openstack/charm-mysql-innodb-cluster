@@ -11,6 +11,7 @@ series:
 - focal
 - jammy
 - lunar
+- mantic
 provides:
   shared-db:
     interface: mysql-shared

@@ -8,9 +8,11 @@ applications:
     options:
       vip: {{TEST_VIP01}}
   keystone-hacluster:
+    series: focal
     charm: ch:hacluster
     channel: 2.0.3/edge
   nova-hacluster:
+    series: focal
     charm: ch:hacluster
     channel: 2.0.3/edge
 relations:
