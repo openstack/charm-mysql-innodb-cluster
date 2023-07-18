@@ -4,6 +4,7 @@ maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 description: |
   MySQL InnoDB Cluster Charm deploys and manages the lifecycle of a
   MySQL InnoDB Cluster.
+docs: https://discourse.charmhub.io/t/mysql-innodb-cluster-docs-index/11009
 tags:
 - databases
 subordinate: false
