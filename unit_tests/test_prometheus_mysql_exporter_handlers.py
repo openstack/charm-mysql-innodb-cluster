@@ -146,6 +146,7 @@ class TestPrometheusMySQLExporterHandlers(test_utils.PatchHelper):
 
     def test_create_local_prometheus_expoter_user(self):
         self.midbc.create_user.return_value = True
+        self.midbc.prometheus_exporter_password = 'mypassword'
         handlers.create_local_prometheus_exporter_user()
         self.midbc.create_user.assert_called_once_with(
             self.midbc.cluster_address,
@@ -155,6 +156,12 @@ class TestPrometheusMySQLExporterHandlers(test_utils.PatchHelper):
         )
         self.set_flag.assert_called_once_with(
             "local.prom-exporter.user-created")
+
+    def test_create_local_prometheus_expoter_user_non_set_password(self):
+        self.midbc.create_user.return_value = True
+        self.midbc.prometheus_exporter_password = None
+        handlers.create_local_prometheus_exporter_user()
+        self.midbc.create_user.assert_not_called()
 
     def test_snap_install_prometheus_exporter(self):
 

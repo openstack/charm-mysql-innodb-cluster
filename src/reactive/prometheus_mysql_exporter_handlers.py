@@ -15,6 +15,13 @@ SNAP_NAME = "mysqld-exporter"
 def create_local_prometheus_exporter_user():
     """Create local exporter user in the DB."""
     with charm.provide_charm_instance() as instance:
+        if not instance.prometheus_exporter_password:
+            ch_core.hookenv.log(
+                "Local prometheus exporter user was not created, because the "
+                "prometheus export password hasn't been set in the leader "
+                "databag.",
+                "WARNING")
+            return
         if not instance.create_user(
             instance.cluster_address,
             instance.prometheus_exporter_user,
