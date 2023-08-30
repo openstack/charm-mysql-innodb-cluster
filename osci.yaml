@@ -6,24 +6,7 @@
       jobs:
       - focal
       - jammy
-      - full_model-focal-full-ha
-      - full_model-jammy-full-ha
     vars:
       needs_charm_build: true
       charm_build_name: mysql-innodb-cluster
       build_type: charmcraft
-
-- job:
-    name: full_model-focal-full-ha
-    parent: func-target
-    dependencies:
-      - focal
-    vars:
-      tox_extra_args: full_model:focal-full-ha
-- job:
-    name: full_model-jammy-full-ha
-    parent: func-target
-    dependencies:
-      - jammy
-    vars:
-      tox_extra_args: full_model:jammy-full-ha

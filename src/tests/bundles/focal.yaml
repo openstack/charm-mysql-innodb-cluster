@@ -1,4 +1,4 @@
-local_overlay_enabled: False
+local_overlay_enabled: True
 
 series: focal
 applications:
@@ -14,8 +14,11 @@ applications:
     num_units: 3
   keystone:
     charm: ch:keystone
-    num_units: 1
+    num_units: 3
     channel: yoga/edge
+  keystone-hacluster:
+    charm: ch:hacluster
+    channel: 2.0.3/edge
   vault:
     charm: ch:vault
     num_units: 1
@@ -33,3 +36,5 @@ relations:
     - mysql-innodb-cluster:db-router
   - - vault-mysql-router:db-router
     - mysql-innodb-cluster:db-router
+  - - "keystone:ha"
+    - "keystone-hacluster:ha"
