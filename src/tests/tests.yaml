@@ -3,13 +3,6 @@ charm_name: mysql-innodb-cluster
 configure:
 - zaza.openstack.charm_tests.vault.setup.auto_initialize
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-- full_model:
-    - zaza.openstack.charm_tests.vault.setup.auto_initialize
-    - zaza.openstack.charm_tests.glance.setup.add_lts_image
-    - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
-    - zaza.openstack.charm_tests.nova.setup.create_flavors
-    - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
-    - zaza.openstack.charm_tests.keystone.setup.add_demo_user
 - scale_in_out:
     - zaza.openstack.charm_tests.vault.setup.auto_initialize
     - zaza.openstack.charm_tests.keystone.setup.add_demo_user
@@ -18,10 +11,6 @@ tests:
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
 - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterRotatePasswordTests
 - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
-- full_model:
-    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterTests
-    - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterRotatePasswordTests
-    - zaza.openstack.charm_tests.keystone.tests.AuthenticationAuthorizationTest
 - scale_in_out:
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterColdStartTest
     - zaza.openstack.charm_tests.mysql.tests.MySQLInnoDBClusterScaleTest
@@ -32,29 +21,17 @@ tests:
 gate_bundles:
 - scale_in_out: focal
 - scale_in_out: jammy
-- full_model: focal-full-ha
-- full_model: jammy-full-ha
 
 smoke_bundles:
 - focal
 
 dev_bundles:
 - scale_in_out: jammy
-- full_model: jammy-full-ha
 
 tests_options:
   force_deploy: []
 
 target_deploy_status:
-  neutron-api-plugin-ovn:
-    workload-status: waiting
-    workload-status-message-prefix: "'certificates' awaiting server certificate data, 'ovsdb-cms' incomplete"
-  ovn-central:
-    workload-status: waiting
-    workload-status-message-prefix: "'ovsdb-peer' incomplete, 'certificates' awaiting server certificate data"
-  ovn-chassis:
-    workload-status: waiting
-    workload-status-message-prefix: "'certificates' awaiting server certificate data"
   vault:
     workload-status: blocked
     workload-status-message-prefix: Vault needs to be initialized
