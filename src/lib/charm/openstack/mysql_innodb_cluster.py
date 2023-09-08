@@ -1209,8 +1209,14 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         else:
             _status = self.get_cluster_status(nocache=nocache)
         if not _status:
-            return
-        return _status["defaultReplicaSet"]["statusText"]
+            return None
+        try:
+            return _status["defaultReplicaSet"]["statusText"]
+        except KeyError:
+            # BUG LP:#2020216 - as a failsafe, if either key is missing just
+            # return None.
+            pass
+        return None
 
     def get_cluster_instance_mode(self, nocache=False):
         """Get cluster status mode
@@ -1232,9 +1238,17 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             _status = self.get_cluster_status(nocache=nocache)
         if not _status:
             return
-        return (_status["defaultReplicaSet"]["topology"]
-                ["{}:{}".format(self.cluster_address, self.cluster_port)]
-                ["mode"])
+        try:
+            return (_status["defaultReplicaSet"]["topology"]
+                    ["{}:{}".format(self.cluster_address, self.cluster_port)]
+                    ["mode"])
+        except KeyError:
+            # BUG LP:#2020216 - during db-router-relation-departed the
+            # address:port combination can be missing depending on the order of
+            # the relations that fire during removal of this unit. Thus return
+            # None in the case of a KeyError
+            pass
+        return None
 
     # TODO: Generalize and move to mysql charmhelpers
     def get_allowed_units(self, database, username, relation_id,
@@ -1575,15 +1589,15 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             ch_core.hookenv.status_set(
                 "blocked",
                 "MySQL InnoDB Cluster not healthy: {}"
-                .format(self.get_cluster_status_text()))
+                .format(self.get_cluster_status_text() or "(empty)"))
             return
 
         # All is good. Report this instance's mode to workgroup status
         ch_core.hookenv.status_set(
             "active",
             "Unit is ready: Mode: {}, {}"
-            .format(self.get_cluster_instance_mode(),
-                    self.get_cluster_status_text()))
+            .format(self.get_cluster_instance_mode() or "(Unknown)",
+                    self.get_cluster_status_text() or "(empty)"))
 
     def check_mysql_connection(
             self, username=None, password=None, address=None):
