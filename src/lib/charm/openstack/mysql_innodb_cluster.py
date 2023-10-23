@@ -1747,13 +1747,15 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
         ch_core.templating.render(
             my_cnf_template, root_my_cnf, context, perms=0o600)
 
-    def mysqldump(self, backup_dir, databases=None):
+    def mysqldump(self, backup_dir, databases=None, gtid_purged_mode=None):
         """Execute a MySQL dump
 
         :param backup_dir: Path to the backup directory
         :type backup_dir: str
         :param databases: Comma delimited database names
         :type database: str
+        :param gtid_purged_mode: GTID purged mode
+        :type gtid_purged_mode: str
         :side effect: Calls subprocess.check_call
         :raises subprocess.CalledProcessError: If the mysqldump fails
         :returns: Path to the mysqldump file
@@ -1770,10 +1772,18 @@ class MySQLInnoDBClusterCharm(charms_openstack.charm.OpenStackCharm):
             ch_core.host.mkdir(
                 backup_dir, owner="mysql", group="mysql", perms=0o750)
 
+        if gtid_purged_mode is None:
+            # default to COMMENTED.
+            gtid_purged_mode = "COMMENTED"
+
+        if gtid_purged_mode not in ("AUTO", "OFF", "ON", "COMMENTED"):
+            raise ValueError(
+                "gtid_purged_mode must be one of AUTO, OFF, ON, COMMENTED")
+
         bucmd = ["/usr/bin/mysqldump", "-u", _user,
                  "--triggers", "--routines", "--events",
                  "--ignore-table=mysql.event",
-                 "--set-gtid-purged=COMMENTED"]
+                 "--set-gtid-purged={}".format(gtid_purged_mode)]
         if databases is not None:
             _filename = os.path.join(
                 backup_dir,

@@ -13,6 +13,17 @@ mysqldump:
       description: |
         Comma delimited database names to dump. If left unset, all databases
         will be dumped.
+    gtid-purged-mode:
+      type: string
+      default: "COMMENTED"
+      description: |
+        This option sets the GTID_PURGED variable when dumping the database. Valid values
+        for this setting are: AUTO, ON, OFF or COMMENTED.
+
+        If the mysql dump is meant to be restored on a different cluster, this option must
+        be set to OFF. MySQL InnoDB cluster group replication takes care of the GTID. Overwriting
+        if during the restore, will cause the secondary units to fail during replication and drop
+        out of the cluster.
 restore-mysqldump:
   description: |
     Restore a MySQL dump of database(s).

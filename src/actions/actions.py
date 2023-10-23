@@ -60,13 +60,22 @@ def mysqldump(args):
     :rtype: None
     :action param basedir: Base directory to dump the db(s)
     :action param databases: Comma separated string of databases
+    :action param gtid-purged-mode: Sets the GTID_PURGED variable.
     :action return: mysqldump-file
     """
     basedir = ch_core.hookenv.action_get("basedir")
     databases = ch_core.hookenv.action_get("databases")
+    gtid_purged_mode = ch_core.hookenv.action_get("gtid-purged-mode")
+
+    # Sadly, the yaml parser used by juju seems to coerce OFF and ON to
+    # a boolean type even if we specify "type": "string" in the action.
+    if type(gtid_purged_mode) is bool:
+        gtid_purged_mode = "ON" if gtid_purged_mode else "OFF"
+
     try:
         with charm.provide_charm_instance() as instance:
-            filename = instance.mysqldump(basedir, databases=databases)
+            filename = instance.mysqldump(basedir, databases=databases,
+                                          gtid_purged_mode=gtid_purged_mode)
         ch_core.hookenv.action_set({
             "mysqldump-file": filename,
             "outcome": "Success"}
