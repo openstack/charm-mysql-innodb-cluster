@@ -129,7 +129,9 @@ def cluster_status(args):
     """
     try:
         with charm.provide_charm_instance() as instance:
-            _status = json.dumps(instance.get_cluster_status())
+            _extended = ch_core.hookenv.action_get("extended")
+            _status = json.dumps(
+                instance.get_cluster_status(extended=_extended))
             ch_core.hookenv.action_set({"cluster-status": _status})
     except subprocess.CalledProcessError as e:
         ch_core.hookenv.action_set({
@@ -137,6 +139,13 @@ def cluster_status(args):
             "return-code": e.returncode,
             "traceback": traceback.format_exc()})
         ch_core.hookenv.action_fail("Cluster status failed")
+    except ValueError as e:
+        ch_core.hookenv.action_set({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+        ch_core.hookenv.action_fail(
+            "Cluster status failed, invalid values for extended parameter")
 
 
 def reboot_cluster_from_complete_outage(args):

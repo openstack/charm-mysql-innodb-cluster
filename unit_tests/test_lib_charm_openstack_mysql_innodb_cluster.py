@@ -1264,7 +1264,7 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _script = (
             "shell.connect('{}:{}@{}')\n"
             "cluster = dba.get_cluster('{}')\n"
-            "print(cluster.status())"
+            "print(cluster.status({{'extended': 0}}))"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
                 midbc.cluster_address, midbc.cluster_name))
