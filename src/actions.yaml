@@ -36,6 +36,12 @@ cluster-status:
   description: |
     JSON dump of the cluster schema and status. This action can be used to
     determine the RW and RO instances.
+  params:
+    extended:
+      type: integer
+      default: 0
+      description: |
+        Level of information to report back, valid values between 0 and 3 inclusive
 reboot-cluster-from-complete-outage:
   description: |
      In the case of a complete outage, reboot the cluster from this instance's

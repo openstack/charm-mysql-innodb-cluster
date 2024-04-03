@@ -1214,7 +1214,7 @@ class MySQLInnoDBClusterCharm(
         self.configure_instance(address)
         self.add_instance_to_cluster(address)
 
-    def get_cluster_status(self, nocache=False):
+    def get_cluster_status(self, nocache=False, extended=0):
         """Get cluster status
 
         Return cluster.status() as a dictionary. If cached data exists and is
@@ -1223,6 +1223,8 @@ class MySQLInnoDBClusterCharm(
 
         :param nocache: Do not return cached data
         :type nocache: Boolean
+        :param extended: Extended output for cluster-status
+        :type extended: integer
         :side effect: Calls self.check_mysql_connection
         :returns: Dictionary cluster status output
         :rtype: Union[None, dict]
@@ -1251,12 +1253,18 @@ class MySQLInnoDBClusterCharm(
                 .format(self._error_str(e)), "ERROR")
             return
 
+        if extended < 0 or extended > 3:
+            raise ValueError(
+                'The value of extended parameter needs to be between '
+                '0 and 3 inclusive')
+
         _script = (
             "shell.connect('{}:{}@{}')\n"
             "cluster = dba.get_cluster('{}')\n"
-            "print(cluster.status())"
+            "print(cluster.status({{'extended': {}}}))"
             .format(self.cluster_user, self.cluster_password,
-                    self.cluster_address, self.cluster_name))
+                    self.cluster_address, self.cluster_name,
+                    extended))
         try:
             output = self.run_mysqlsh_script(_script)
         except subprocess.CalledProcessError as e:
@@ -1264,7 +1272,8 @@ class MySQLInnoDBClusterCharm(
                 "Failed checking cluster status: {}"
                 .format(self._error_str(e)), "ERROR")
             return
-        self._cached_cluster_status = json.loads(output.decode("UTF-8"))
+        output = ''.join(str(output.decode('UTF-8')).split('\n'))
+        self._cached_cluster_status = json.loads(output)
         return self._cached_cluster_status
 
     @staticmethod
