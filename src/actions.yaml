@@ -74,8 +74,12 @@ remove-instance:
     - address
   description: |
      Remove an instance from the cluster. *Note* This action must be run on an
-     instance that is a functioning member of the cluster preferrably the the
-     juju leader to guarantee charm related flags are cleared.
+     instance that is a functioning member of the cluster preferably the
+     juju leader to guarantee charm related flags are cleared. Due to bug
+     LP#1954306, the force parameter should always be used. Additionally,
+     the instance being removed must be either ONLINE without an ERROR state,
+     or it must unreachable (mysql service not running on the node being
+     removed).
 add-instance:
   params:
     address:

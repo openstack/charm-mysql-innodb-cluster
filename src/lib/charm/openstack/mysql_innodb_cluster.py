@@ -715,8 +715,8 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed configuring instance {}: {}"
-                .format(address, e.stderr.decode("UTF-8")), "ERROR")
-            return
+                .format(address, self._error_str(e)), "ERROR")
+            raise
 
         # After configuration of the remote instance, the remote instance
         # restarts mysql. We need to pause here for that to complete.
@@ -812,7 +812,7 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed creating cluster: {}"
-                .format(e.stderr.decode("UTF-8")), "ERROR")
+                .format(self._error_str(e)), "ERROR")
             return
         ch_core.hookenv.log("Cluster Created: {}"
                             .format(output.decode("UTF-8")),
@@ -847,10 +847,9 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed setting cluster option {}={}: {}"
-                .format(key, value, e.stderr.decode("UTF-8")),
-                "ERROR")
+                .format(key, value, self._error_str(e)), "ERROR")
             # Reraise for action handling
-            raise e
+            raise
 
     def get_ip_allowlist_str_from_db(self, m_helper=None):
         """Helper for retrieving ip allow list
@@ -958,7 +957,7 @@ class MySQLInnoDBClusterCharm(
             # Creating separate checks in order to get good logging on each
             # outcome.
             output = None
-            _stderr = e.stderr.decode("UTF-8")
+            _stderr = self._error_str(e)
             if "Clone process has finished" in _stderr:
                 output = e.stderr
                 ch_core.hookenv.log(
@@ -981,7 +980,7 @@ class MySQLInnoDBClusterCharm(
                 ch_core.hookenv.log(
                     "Failed adding instance {} to cluster: {}"
                     .format(address, _stderr), "ERROR")
-                return
+                raise
         ch_core.hookenv.log("Instance Clustered {}: {}"
                             .format(address, output.decode("UTF-8")),
                             level="DEBUG")
@@ -1011,11 +1010,12 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             # If the shell reports the server went away we expect this
             # when giving the RESTART command
-            if _server_gone_away_error not in e.stderr.decode("UTF-8"):
+            msg = self._error_str(e)
+            if _server_gone_away_error not in msg:
                 ch_core.hookenv.log(
                     "Failed restarting instance {}: {}"
-                    .format(address, e.stderr.decode("UTF-8")), "ERROR")
-                raise e
+                    .format(address, msg), "ERROR")
+                raise
 
         # After configuration of the remote instance, the remote instance
         # restarts mysql. We need to pause here for that to complete.
@@ -1054,10 +1054,10 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed rebooting from complete outage: {}"
-                .format(e.stderr.decode("UTF-8")),
+                .format(self._error_str(e)),
                 "ERROR")
             # Reraise for action handling
-            raise e
+            raise
 
     def rejoin_instance(self, address):
         """Rejoin instance to the cluster
@@ -1089,10 +1089,10 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed rejoining instance {}: {}"
-                .format(address, e.stderr.decode("UTF-8")),
+                .format(address, self._error_str(e)),
                 "ERROR")
             # Reraise for action handling
-            raise e
+            raise
 
     def remove_instance(self, address, force=False):
         """Remove instance from the cluster
@@ -1137,10 +1137,10 @@ class MySQLInnoDBClusterCharm(
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
                 "Failed removing instance {}: {}"
-                .format(address, e.stderr.decode("UTF-8")),
+                .format(address, self._error_str(e)),
                 "ERROR")
             # Reraise for action handling
-            raise e
+            raise
 
     def cluster_rescan(self):
         """Rescan the cluster
@@ -1169,10 +1169,10 @@ class MySQLInnoDBClusterCharm(
             return output
         except subprocess.CalledProcessError as e:
             ch_core.hookenv.log(
-                "Failed rescanning the cluster.",
-                "ERROR")
+                "Failed rescanning the cluster: {}".format(
+                    self._error_str(e)), "ERROR")
             # Reraise for action handling
-            raise e
+            raise
 
     def configure_and_add_instance(self, address):
         """Configure and add an instance to the cluster.
@@ -1202,8 +1202,20 @@ class MySQLInnoDBClusterCharm(
                     "all"):
                 raise Exception(
                     "Not all cluster users created.")
-        self.configure_instance(address)
-        self.add_instance_to_cluster(address)
+
+        configured = False
+        try:
+            self.configure_instance(address)
+            configured = True
+            self.add_instance_to_cluster(address)
+        except subprocess.CalledProcessError as e:
+            # Addressing special case of bug LP#1983158
+            if (not configured and
+                    "Server in SUPER_READ_ONLY mode" in self._error_str(e)):
+                self.add_instance_to_cluster(address)
+                self.configure_instance(address)
+            else:
+                raise
 
     def get_cluster_status(self, nocache=False, extended=0):
         """Get cluster status
@@ -1280,7 +1292,7 @@ class MySQLInnoDBClusterCharm(
         :rtype: str
         """
         try:
-            return e.stderr.decode()
+            return e.stderr.decode("UTF-8")
         except Exception:
             pass
         return str(e)
