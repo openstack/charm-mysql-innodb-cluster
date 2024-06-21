@@ -19,14 +19,14 @@ tests:
     - zaza.openstack.charm_tests.mysql.test_prometheus_mysql_exporter.PrometheusMySQLExporterTest
 
 gate_bundles:
-- scale_in_out: focal
-- scale_in_out: jammy
+- scale_in_out: noble
+- scale_in_out: noble
 
 smoke_bundles:
-- focal
+- noble
 
 dev_bundles:
-- scale_in_out: jammy
+- scale_in_out: noble
 
 tests_options:
   force_deploy: []

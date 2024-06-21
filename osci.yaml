@@ -1,13 +1,11 @@
 - project:
     templates:
-      - charm-unit-jobs-py38
       - charm-unit-jobs-py310
     check:
       jobs:
-      - focal
-      - jammy
+      - noble
     vars:
       needs_charm_build: true
       charm_build_name: mysql-innodb-cluster
       build_type: charmcraft
-      charmcraft_channel: "2.x/stable"
+      charmcraft_channel: "3.x/beta"

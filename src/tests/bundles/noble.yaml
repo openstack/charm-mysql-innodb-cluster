@@ -1,6 +1,6 @@
 local_overlay_enabled: True
 
-series: jammy
+series: noble
 applications:
   keystone-mysql-router:
     charm: ch:mysql-router
@@ -9,7 +9,7 @@ applications:
     charm: ch:mysql-router
     channel: latest/edge
   mysql-innodb-cluster:
-    charm: ../../../mysql-innodb-cluster_ubuntu-22.04-amd64.charm
+    charm: ../../../mysql-innodb-cluster_amd64.charm
     num_units: 3
     options:
       prometheus-exporter-snap-channel: edge
