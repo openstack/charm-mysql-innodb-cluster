@@ -29,9 +29,17 @@ machines '0', '1', and '2':
 A cloud application is joined to the database via an instance of mysql-router.
 For a pre-existing keystone application:
 
+For Juju 2.x:
+
     juju deploy mysql-router keystone-mysql-router
     juju add-relation keystone-mysql-router:db-router mysql-innodb-cluster:db-router
     juju add-relation keystone-mysql-router:shared-db keystone:shared-db
+
+For Juju 3.x:
+
+    juju deploy mysql-router keystone-mysql-router
+    juju integrate keystone-mysql-router:db-router mysql-innodb-cluster:db-router
+    juju integrate keystone-mysql-router:shared-db keystone:shared-db
 
 > **Important**: When network spaces are used, the mysql-router and
   mysql-innodb-cluster charms must be configured such that the 'db-router'
@@ -45,9 +53,16 @@ Charms Deployment Guide][cdg] for more deploy information.
 Passwords are automatically generated and stored by the application leader.
 
 The root password required to use the `mysql` or `mysqlsh` utilities locally on the
-units can be retrieved using the following command:
+units can be retrieved from the leader unit. This command varies slightly between
+Juju 2.x and Juju 3.x versions.
+
+For Juju 2.x:
 
     juju run --unit mysql-innodb-cluster/leader leader-get mysql.passwd
+
+For Juju 3.x:
+
+    juju exec --unit mysql-innodb-cluster/leader leader-get mysql.passwd
 
 ## TLS
 
@@ -57,7 +72,13 @@ itself. However, a better option is to use a certificate signed by a
 Vault-based CA. This can be done once Vault has been initialised and has a root
 CA:
 
+For Juju 2.x:
+
     juju add-relation mysql-innodb-cluster:certificates vault:certificates
+
+For Juju 3.x:
+
+    juju integrate mysql-innodb-cluster:certificates vault:certificates
 
 See the [vault][vault-charm-readme] charm README for more information.
 
@@ -67,8 +88,15 @@ When adding a unit to an already formed cluster, and where that unit resides on
 a subnet different from any existing unit, the following extra actions are
 needed:
 
+For Juju 2.x:
+
     juju run-action --wait mysql-innodb-cluster/leader update-unit-acls
     juju run-action --wait mysql-innodb-cluster/leader add-instance address=<address of new unit>
+
+For Juju 3.x:
+
+    juju run --wait mysql-innodb-cluster/leader update-unit-acls
+    juju run --wait mysql-innodb-cluster/leader add-instance address=<address of new unit>
 
 ## Actions
 
