@@ -2,23 +2,23 @@ type: charm
 
 parts:
   charm:
+    plugin: reactive
+    reactive-charm-build-arguments:
+    - --verbose
+    - --use-lock-file-branches
     build-packages:
-      - tox
-      - git
-      - python3-dev
-      - libmysqlclient-dev  # for executable mysql_shell
-    override-build: |
-      apt-get install ca-certificates -y
-      tox -e build-reactive
-    override-stage: |
-      echo "Copying charm to staging area: $CHARMCRAFT_STAGE"
-      NAME=$(ls $CHARMCRAFT_PART_BUILD/build/builds)
-      cp -r $CHARMCRAFT_PART_BUILD/build/builds/$NAME/* $CHARMCRAFT_STAGE/
-    override-prime: |
-      # For some reason, the normal priming chokes on the fact that there's a
-      # hooks directory.
-      cp -r $CHARMCRAFT_STAGE/* .
-
+    - tox
+    - git
+    - python3-dev
+    - libffi-dev
+    - libmysqlclient-dev
+    - pkg-config
+    source: src/
+    build-snaps:
+    - charm
+    build-environment:
+    - CHARM_INTERFACES_DIR: $CRAFT_PROJECT_DIR/interfaces/
+    - CHARM_LAYERS_DIR: $CRAFT_PROJECT_DIR/layers/
 bases:
   - build-on:
       - name: ubuntu

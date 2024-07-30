@@ -10,4 +10,4 @@
       needs_charm_build: true
       charm_build_name: mysql-innodb-cluster
       build_type: charmcraft
-      charmcraft_channel: "1.5/stable"
+      charmcraft_channel: "2.x/stable"
