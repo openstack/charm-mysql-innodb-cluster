@@ -260,9 +260,10 @@ class TestPrometheusMySQLExporterHandlers(test_utils.PatchHelper):
     def test_stop_prometheus_exporter_service(self):
         handlers.stop_prometheus_exporter_service()
         self.service_stop.assert_called_once_with(self._svc_name)
-        self.remove_state.has_calls(
+        expected_calls = [
             mock.call("snap.prometheus-exporter.configed"),
-            mock.call("snap.prometheus-exporter.started"),
-        )
+            mock.call("snap.prometheus-exporter.started")
+        ]
+        self.remove_state.assert_has_calls(expected_calls)
         self.status_set.assert_called_once_with(
             "active", "Stop prometheus exporter service")
