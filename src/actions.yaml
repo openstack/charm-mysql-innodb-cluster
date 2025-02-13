@@ -17,8 +17,9 @@ mysqldump:
       type: string
       default: "COMMENTED"
       description: |
-        This option sets the GTID_PURGED variable when dumping the database. Valid values
-        for this setting are: AUTO, ON, OFF or COMMENTED.
+        This option sets the GTID_PURGED variable when dumping the database.
+        Valid values for this setting are: AUTO, ON, OFF or COMMENTED. This
+        option must always be called with '--string-args'
 
         If the mysql dump is meant to be restored on a different cluster, this option must
         be set to OFF. MySQL InnoDB cluster group replication takes care of the GTID. Overwriting
