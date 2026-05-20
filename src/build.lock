@@ -1,0 +1,300 @@
+{
+  "locks": [
+    {
+      "type": "layer",
+      "item": "layer:options",
+      "url": "https://github.com/juju-solutions/layer-options.git",
+      "vcs": null,
+      "branch": "fcdcea4e5de3e1556c24e6704607862d0ba00a56",
+      "commit": "fcdcea4e5de3e1556c24e6704607862d0ba00a56"
+    },
+    {
+      "type": "layer",
+      "item": "layer:basic",
+      "url": "https://github.com/juju-solutions/layer-basic.git",
+      "vcs": null,
+      "branch": "7852b1138cff6c34d483479269e7682c687798e5",
+      "commit": "7852b1138cff6c34d483479269e7682c687798e5"
+    },
+    {
+      "type": "layer",
+      "item": "layer:coordinator",
+      "url": "https://git.launchpad.net/layer-coordinator ",
+      "vcs": null,
+      "branch": "fa27fc93e0b08000963e83a6bfe49812d890dfcf",
+      "commit": "fa27fc93e0b08000963e83a6bfe49812d890dfcf"
+    },
+    {
+      "type": "layer",
+      "item": "layer:leadership",
+      "url": "https://git.launchpad.net/layer-leadership",
+      "vcs": null,
+      "branch": "cc5bd3f49b2fa5e6c3ab2336763c313ec8bf083f",
+      "commit": "cc5bd3f49b2fa5e6c3ab2336763c313ec8bf083f"
+    },
+    {
+      "type": "layer",
+      "item": "layer:snap",
+      "url": "https://git.launchpad.net/layer-snap",
+      "vcs": null,
+      "branch": "5c5d1b62efe1c8406c92043a52c719a7eee07156",
+      "commit": "5c5d1b62efe1c8406c92043a52c719a7eee07156"
+    },
+    {
+      "type": "layer",
+      "item": "layer:openstack",
+      "url": "https://github.com/openstack/charm-layer-openstack",
+      "vcs": null,
+      "branch": "7c671b0696977f455616565d956895b2f890464b",
+      "commit": "7c671b0696977f455616565d956895b2f890464b"
+    },
+    {
+      "type": "layer",
+      "item": "mysql-innodb-cluster",
+      "url": null,
+      "vcs": null,
+      "branch": null,
+      "commit": ""
+    },
+    {
+      "type": "layer",
+      "item": "interface:tls-certificates",
+      "url": "https://github.com/juju-solutions/interface-tls-certificates",
+      "vcs": null,
+      "branch": "671eee13d9f7d02b9862f8a3a3498b37c236fd60",
+      "commit": "671eee13d9f7d02b9862f8a3a3498b37c236fd60"
+    },
+    {
+      "type": "layer",
+      "item": "interface:mysql-shared",
+      "url": "https://github.com/openstack/charm-interface-mysql-shared",
+      "vcs": null,
+      "branch": "f90f8c6edce21e4da3a872f0f9d6761730ce025d",
+      "commit": "f90f8c6edce21e4da3a872f0f9d6761730ce025d"
+    },
+    {
+      "type": "layer",
+      "item": "interface:mysql-router",
+      "url": "https://github.com/openstack/charm-interface-mysql-router.git",
+      "vcs": null,
+      "branch": "f47d7bad342da110af18afc6a23450e219564fb7",
+      "commit": "f47d7bad342da110af18afc6a23450e219564fb7"
+    },
+    {
+      "type": "layer",
+      "item": "interface:mysql-innodb-cluster",
+      "url": "https://github.com/openstack/charm-interface-mysql-innodb-cluster.git",
+      "vcs": null,
+      "branch": "034077071275af64d106117854703f02518639ef",
+      "commit": "034077071275af64d106117854703f02518639ef"
+    },
+    {
+      "type": "layer",
+      "item": "interface:mysql-monitor",
+      "url": "https://github.com/canonical/interface-mysql-monitor",
+      "vcs": null,
+      "branch": "7d6675fa8c95ec2ff6fbbd5bd29e5457d53e66e0",
+      "commit": "7d6675fa8c95ec2ff6fbbd5bd29e5457d53e66e0"
+    },
+    {
+      "type": "layer",
+      "item": "interface:http",
+      "url": "https://github.com/juju-solutions/interface-http.git",
+      "vcs": null,
+      "branch": "632131b1f122daf6fb601fd4c9f1e4dbb1a92e09",
+      "commit": "632131b1f122daf6fb601fd4c9f1e4dbb1a92e09"
+    },
+    {
+      "type": "python_module",
+      "package": "trove_classifiers",
+      "vcs": null,
+      "version": "2026.5.20.19"
+    },
+    {
+      "type": "python_module",
+      "package": "charms.openstack",
+      "url": "git+https://github.com/openstack/charms.openstack.git",
+      "branch": "stable/caracal",
+      "version": "bd5a9552498d65ebd28809564e672e40b2d0ea95",
+      "vcs": "git"
+    },
+    {
+      "type": "python_module",
+      "package": "packaging",
+      "vcs": null,
+      "version": "26.2"
+    },
+    {
+      "type": "python_module",
+      "package": "pip",
+      "vcs": null,
+      "version": "22.0.4"
+    },
+    {
+      "type": "python_module",
+      "package": "Cython",
+      "vcs": null,
+      "version": "0.29.37"
+    },
+    {
+      "type": "python_module",
+      "package": "hatchling",
+      "vcs": null,
+      "version": "1.29.0"
+    },
+    {
+      "type": "python_module",
+      "package": "setuptools_scm",
+      "vcs": null,
+      "version": "10.0.5"
+    },
+    {
+      "type": "python_module",
+      "package": "six",
+      "vcs": null,
+      "version": "1.17.0"
+    },
+    {
+      "type": "python_module",
+      "package": "tenacity",
+      "vcs": null,
+      "version": "7.0.0"
+    },
+    {
+      "type": "python_module",
+      "package": "pluggy",
+      "vcs": null,
+      "version": "1.6.0"
+    },
+    {
+      "type": "python_module",
+      "package": "dnspython",
+      "vcs": null,
+      "version": "2.8.0"
+    },
+    {
+      "type": "python_module",
+      "package": "netifaces",
+      "vcs": null,
+      "version": "0.11.0"
+    },
+    {
+      "type": "python_module",
+      "package": "setuptools",
+      "vcs": null,
+      "version": "68.2.2"
+    },
+    {
+      "type": "python_module",
+      "package": "vcs_versioning",
+      "vcs": null,
+      "version": "1.1.1"
+    },
+    {
+      "type": "python_module",
+      "package": "netaddr",
+      "vcs": null,
+      "version": "0.7.19"
+    },
+    {
+      "type": "python_module",
+      "package": "pyyaml",
+      "vcs": null,
+      "version": "6.0.3"
+    },
+    {
+      "type": "python_module",
+      "package": "looseversion",
+      "vcs": null,
+      "version": "1.3.0"
+    },
+    {
+      "type": "python_module",
+      "package": "flit_scm",
+      "vcs": null,
+      "version": "1.7.0"
+    },
+    {
+      "type": "python_module",
+      "package": "charmhelpers",
+      "url": "git+https://github.com/juju/charm-helpers.git",
+      "branch": "stable/caracal",
+      "version": "a137020ffe61a4030ded3dbb52973e2e782288f7",
+      "vcs": "git"
+    },
+    {
+      "type": "python_module",
+      "package": "mysqlclient",
+      "vcs": null,
+      "version": "2.2.8"
+    },
+    {
+      "type": "python_module",
+      "package": "MarkupSafe",
+      "vcs": null,
+      "version": "2.1.5"
+    },
+    {
+      "type": "python_module",
+      "package": "charms.reactive",
+      "url": "git+https://github.com/canonical/charms.reactive.git",
+      "branch": "431df9aaafed0650bf5bbe66fb50b370ab88e739",
+      "version": "431df9aaafed0650bf5bbe66fb50b370ab88e739",
+      "vcs": "git"
+    },
+    {
+      "type": "python_module",
+      "package": "psutil",
+      "vcs": null,
+      "version": "7.2.2"
+    },
+    {
+      "type": "python_module",
+      "package": "calver",
+      "vcs": null,
+      "version": "2025.10.20"
+    },
+    {
+      "type": "python_module",
+      "package": "wheel",
+      "vcs": null,
+      "version": "0.47.0"
+    },
+    {
+      "type": "python_module",
+      "package": "pyaml",
+      "vcs": null,
+      "version": "21.10.1"
+    },
+    {
+      "type": "python_module",
+      "package": "flit_core",
+      "vcs": null,
+      "version": "3.12.0"
+    },
+    {
+      "type": "python_module",
+      "package": "poetry_core",
+      "vcs": null,
+      "version": "2.4.0"
+    },
+    {
+      "type": "python_module",
+      "package": "pathspec",
+      "vcs": null,
+      "version": "1.1.1"
+    },
+    {
+      "type": "python_module",
+      "package": "pbr",
+      "vcs": null,
+      "version": "7.0.3"
+    },
+    {
+      "type": "python_module",
+      "package": "jinja2",
+      "vcs": null,
+      "version": "3.1.6"
+    }
+  ]
+}
