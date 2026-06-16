@@ -1,0 +1,14 @@
+# This file is managed centrally by release-tools and should not be modified
+# within individual charm repos.  See the 'global' dir contents for available
+# choices of *requirements.txt files for OpenStack Charms:
+#     https://github.com/openstack-charmers/release-tools
+#
+# NOTE(lourot): This might look like a duplication of test-requirements.txt but
+# some tox targets use only test-requirements.txt whereas charm-build uses only
+# requirements.txt
+setuptools<82.0.0
+
+# Build requirements
+git+https://github.com/juju/charm-tools.git
+simplejson
+
