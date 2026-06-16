@@ -9,7 +9,7 @@ applications:
     charm: ch:mysql-router
     channel: latest/edge
   mysql-innodb-cluster:
-    charm: ../../../mysql-innodb-cluster_amd64.charm
+    charm: ../../../mysql-innodb-cluster_ubuntu@24.04-amd64.charm
     num_units: 3
     options:
       prometheus-exporter-snap-channel: edge
@@ -23,7 +23,7 @@ applications:
   vault:
     charm: ch:vault
     num_units: 1
-    channel: 1.7/edge
+    channel: 1.8/edge
   prometheus2:
     charm: ch:prometheus2
     num_units: 1
