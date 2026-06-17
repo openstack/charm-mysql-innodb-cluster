@@ -14,6 +14,7 @@
 
 import copy
 import collections
+import json
 import re
 import subprocess
 from unittest import mock
@@ -1912,13 +1913,20 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
         _local_addr = "10.10.50.50"
         _remote_addr = "10.10.50.70"
         self.get_relation_ip.return_value = _local_addr
+        self.leader_data = {
+            "cluster-instance-clustered-10-10-50-50": True}
 
         midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
-        midbc.get_cluster_primary_address = mock.MagicMock(
-            return_value=_local_addr)
+        midbc.wait_until_cluster_available = mock.MagicMock()
         midbc.options.cluster_name = _name
         midbc.run_mysqlsh_script = mock.MagicMock()
-        midbc.run_mysqlsh_script.return_value = _string.encode("UTF-8")
+        midbc.run_mysqlsh_script.side_effect = [
+            json.dumps({
+                "groupInformationSourceMember": "{}:3306".format(_local_addr),
+                "defaultReplicaSet": {"topology": {
+                    "{}:3306".format(_local_addr): {},
+                    "{}:3306".format(_remote_addr): {}}}}).encode("UTF-8"),
+            _string.encode("UTF-8")]
         midbc._get_password = mock.MagicMock()
         midbc._get_password.return_value = _pass
 
@@ -1928,10 +1936,86 @@ class TestMySQLInnoDBClusterCharm(test_utils.PatchHelper):
             "cluster.remove_instance('{}@{}', {{'force': False}})"
             .format(
                 midbc.cluster_user, midbc.cluster_password,
-                midbc.cluster_address, midbc.options.cluster_name,
+                _local_addr, midbc.options.cluster_name,
                 midbc.cluster_user, _remote_addr))
         self.assertEqual(_string, midbc.remove_instance(_remote_addr))
-        midbc.run_mysqlsh_script.assert_called_once_with(_script)
+        # One cluster.status() query serves both the metadata check and the
+        # primary lookup, followed by the removal itself.
+        self.assertEqual(2, midbc.run_mysqlsh_script.call_count)
+        midbc.run_mysqlsh_script.assert_called_with(_script)
+
+    def test_remove_instance_not_in_metadata(self):
+        _remote_addr = "10.10.50.70"
+        _expected_flags = {
+            "cluster-instance-configured-10-10-50-70": None,
+            "cluster-instance-clustered-10-10-50-70": None}
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.instance_in_cluster_metadata = mock.MagicMock(
+            return_value=False)
+        midbc.run_mysqlsh_script = mock.MagicMock()
+
+        # Leader: skip removal, clear flags, report why nothing was removed
+        self.is_leader.return_value = True
+        _output = midbc.remove_instance(_remote_addr)
+        self.assertIn(_remote_addr, _output)
+        self.assertIn("not in the cluster metadata", _output)
+        midbc.run_mysqlsh_script.assert_not_called()
+        self.leader_set.assert_called_once_with(_expected_flags)
+
+        # Non-leader: flags cannot be cleared, so warn about the address
+        self.leader_set.reset_mock()
+        self.log.reset_mock()
+        self.is_leader.return_value = False
+        midbc.remove_instance(_remote_addr)
+        self.leader_set.assert_not_called()
+        self.assertTrue(any(
+            _remote_addr in c.args[0] and "non-leader" in c.args[0]
+            for c in self.log.call_args_list))
+
+    def test_instance_in_cluster_metadata(self):
+        _local_addr = "10.10.50.50"
+        self.get_relation_ip.return_value = _local_addr
+
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_status = mock.MagicMock(return_value={
+            "defaultReplicaSet": {
+                "topology": {
+                    "10.10.50.50:3306": {},
+                    "10.10.50.60:3306": {},
+                }}})
+        self.assertTrue(midbc.instance_in_cluster_metadata("10.10.50.60"))
+        self.assertFalse(midbc.instance_in_cluster_metadata("10.10.50.70"))
+        # If status is unavailable, assume present so caller may try removal
+        midbc.get_cluster_status.return_value = None
+        self.assertTrue(midbc.instance_in_cluster_metadata("10.10.50.70"))
+
+    def test_instance_in_cluster_metadata_ipv6(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_status = mock.MagicMock(return_value={
+            "defaultReplicaSet": {
+                "topology": {
+                    "[2001:db8::1]:3306": {},
+                    "[2001:db8::2]:3306": {},
+                }}})
+
+        self.assertTrue(midbc.instance_in_cluster_metadata("2001:db8::2"))
+        self.assertFalse(midbc.instance_in_cluster_metadata("2001:db8::3"))
+
+    def test_remove_instance_invalid_address(self):
+        midbc = mysql_innodb_cluster.MySQLInnoDBClusterCharm()
+        midbc.get_cluster_status = mock.MagicMock(return_value={
+            "defaultReplicaSet": {
+                "topology": {"10.10.50.70:3306": {}}}})
+        midbc.clear_flags_for_removed_instance = mock.MagicMock()
+        midbc.run_mysqlsh_script = mock.MagicMock()
+        self.is_leader.return_value = True
+
+        # A typo must fail loudly, not be treated as "already removed"
+        with self.assertRaises(ValueError):
+            midbc.remove_instance("10.10.50.7O")
+        midbc.run_mysqlsh_script.assert_not_called()
+        midbc.clear_flags_for_removed_instance.assert_not_called()
 
     def test_cluster_rescan(self):
         _pass = "clusterpass"

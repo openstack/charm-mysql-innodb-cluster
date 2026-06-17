@@ -21,6 +21,7 @@ import re
 import subprocess
 import tenacity
 import tempfile
+import urllib.parse
 import uuid
 from typing import Literal
 
@@ -1094,17 +1095,70 @@ class MySQLInnoDBClusterCharm(
             # Reraise for action handling
             raise
 
+    def instance_in_cluster_metadata(self, address):
+        """Determine if an instance is present in the cluster metadata.
+
+        Inspect the cluster topology returned by cluster.status() and report
+        whether the given address is still a member of the cluster.
+
+        :param address: IP address of the MySQL instance to check
+        :type address: str
+        :side effect: Calls self.get_cluster_status
+        :returns: True if the address is in cluster metadata, otherwise False
+        :rtype: bool
+        :raises: ValueError if address is not a valid IP address
+        """
+        _address = ipaddress.ip_address(address)
+        _status = self.get_cluster_status(nocache=True)
+        if not _status:
+            # Unable to determine status; assume present and let the caller
+            # attempt removal rather than silently skipping.
+            return True
+        _topology = _status.get("defaultReplicaSet", {}).get("topology", {})
+        for _member in _topology:
+            _member_address = urllib.parse.urlsplit(
+                "//{}".format(_member)).hostname
+            try:
+                _member_address = ipaddress.ip_address(_member_address)
+            except ValueError:
+                pass
+            if _member_address == _address:
+                return True
+        return False
+
     def remove_instance(self, address, force=False):
         """Remove instance from the cluster
 
         Execute the cluster.remove_instance(address) to remove an instance from
-        the cluster.
+        the cluster. If the instance is already absent from the cluster
+        metadata, skip the removal and only clear its leader settings flags.
 
-        :side effect: Calls self.run_mysqlsh_script
-        :returns: This function is called for its side effect
-        :rtype: None
+        :param address: IP address of the MySQL instance to remove
+        :type address: str
+        :param force: Force removal of an unreachable instance
+        :type force: bool
+        :side effect: Calls self.get_cluster_status, self.run_mysqlsh_script
+            and self.clear_flags_for_removed_instance
+        :returns: Output of cluster.remove_instance, or a message stating the
+            instance is not in the cluster metadata
+        :rtype: str
+        :raises ValueError: if address is not a valid IP address
+        :raises subprocess.CalledProcessError: if cluster.remove_instance fails
         """
-        _primary = self.get_cluster_primary_address(nocache=True)
+        # Idempotency: if the instance is already absent from the cluster
+        # metadata there is nothing to remove. Without this guard a departed
+        # instance whose metadata was already cleaned up causes
+        # cluster.remove_instance to raise "Metadata for instance not found",
+        # failing the departed hook and trapping the unit in a permanent
+        # error/retry loop (LP Bug#2157341).
+        if not self.instance_in_cluster_metadata(address):
+            msg = ("Instance {} is not in the cluster metadata; nothing to "
+                   "remove.".format(address))
+            ch_core.hookenv.log(msg, "WARNING")
+            self.clear_flags_for_removed_instance(address)
+            return msg
+        # instance_in_cluster_metadata just refreshed the cached status
+        _primary = self.get_cluster_primary_address()
         ch_core.hookenv.log("Remove instance: {}.".format(address))
         _script = (
             "shell.connect('{user}:{pw}@{caddr}')\n"
@@ -2099,7 +2153,8 @@ class MySQLInnoDBClusterCharm(
             ch_core.hookenv.log(
                 "Clear leadership flags for removed instance with address {} "
                 "called on a non-leader node. Flags are not unset and may "
-                "require the remove-instance action.", "WARNING")
+                "require the remove-instance action.".format(address),
+                "WARNING")
             return
 
         # Clear flags to avoid LP Bug#1922394
