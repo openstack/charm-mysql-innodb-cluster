@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ipaddress
 import json
 import os
 import subprocess
@@ -307,12 +308,18 @@ def remove_instance(args):
     :side effect: Calls instance.remove_instance
     :returns: This function is called for its side effect
     :rtype: None
-    :action param address: String address of the instance to be removed
+    :action param address: IP address of the instance to be removed
     :action param force: Boolean force removal of missing instance
     :action return: Dictionary with command output
     """
     address = ch_core.hookenv.action_get("address")
     force = ch_core.hookenv.action_get("force")
+    try:
+        ipaddress.ip_address(address)
+    except ValueError as e:
+        ch_core.hookenv.action_set({"output": str(e)})
+        ch_core.hookenv.action_fail("Invalid address: {}".format(address))
+        return
     try:
         with charm.provide_charm_instance() as instance:
             output = instance.remove_instance(address, force=force)
